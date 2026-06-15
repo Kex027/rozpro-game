@@ -162,12 +162,13 @@ void reset_round() {
     }
     
     // Reset players position and current gold (keep upgrades and rounds won)
+    float divisor = game_state.player_count > 0 ? static_cast<float>(game_state.player_count) : 4.0f;
     for (uint32_t i = 0; i < game_state.player_count; ++i) {
         Player& p = game_state.players[i];
         p.gold_carried = 0;
         p.gold_in_base = 0;
  
-        float angle = (2.0f * 3.14159f / MAX_PLAYERS) * p.color_index;
+        float angle = (2.0f * 3.14159f / divisor) * p.color_index;
         p.pos.x = CENTER_X + (BASE_ROTATION_RADIUS - 50.0f) * std::cos(angle);
         p.pos.y = CENTER_Y + (BASE_ROTATION_RADIUS - 50.0f) * std::sin(angle);
         p.dir.x = 0;
@@ -178,7 +179,7 @@ void reset_round() {
     for (uint32_t i = 0; i < game_state.player_count; ++i) {
         Base& b = game_state.bases[i];
         b.owner_id = game_state.players[i].id;
-        b.angle = (2.0f * 3.14159f / MAX_PLAYERS) * game_state.players[i].color_index;
+        b.angle = (2.0f * 3.14159f / divisor) * game_state.players[i].color_index;
         b.pos.x = CENTER_X + BASE_ROTATION_RADIUS * std::cos(b.angle);
         b.pos.y = CENTER_Y + BASE_ROTATION_RADIUS * std::sin(b.angle);
         b.is_active = game_state.players[i].is_active;

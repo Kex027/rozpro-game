@@ -206,9 +206,11 @@ int main() {
             GameState state = network_get_state();
             uint32_t my_id = network_get_player_id();
 
+            // rysowanie wyspy i granic
             DrawRectangle(30, 30, (int)MAP_WIDTH - 60, (int)MAP_HEIGHT - 60, Color{ 245, 222, 179, 255 });
             DrawRectangleLinesEx(Rectangle{ 30, 30, MAP_WIDTH - 60, MAP_HEIGHT - 60 }, 5, Color{ 215, 185, 120, 255 });
 
+            // rysowanie baz graczy
             for (uint32_t i = 0; i < state.player_count; ++i) {
                 Base& b = state.bases[i];
                 if (!b.is_active) continue;
@@ -216,7 +218,7 @@ int main() {
                 Color c = GetPlayerColor(state.players[i].color_index);
                 Color dark_c = GetPlayerDarkColor(state.players[i].color_index);
 
-                DrawCircle(static_cast<int>(b.pos.x), static_cast<int>(b.pos.y), BASE_RADIUS, dark_c);
+                // DrawCircle(static_cast<int>(b.pos.x), static_cast<int>(b.pos.y), BASE_RADIUS, dark_c);
                 DrawCircle(static_cast<int>(b.pos.x), static_cast<int>(b.pos.y), BASE_RADIUS - 6.0f, c);
                 DrawCircle(static_cast<int>(b.pos.x), static_cast<int>(b.pos.y), BASE_RADIUS - 12.0f, Color{ 245, 222, 179, 255 });
 
@@ -227,9 +229,11 @@ int main() {
                 DrawText(label, static_cast<int>(b.pos.x - label_w / 2), static_cast<int>(b.pos.y - BASE_RADIUS - 20), 14, WHITE);
             }
 
-            DrawCircle(static_cast<int>(CENTER_X), static_cast<int>(CENTER_Y), MINE_RADIUS, BLACK);
+            // rysowanie centralnej kopalni
+            DrawCircle(static_cast<int>(CENTER_X), static_cast<int>(CENTER_Y), MINE_RADIUS + 5.0f, DARKGRAY);
             DrawText("MINE", static_cast<int>(CENTER_X - 16), static_cast<int>(CENTER_Y - 8), 14, GOLD);
 
+            // rysowanie brylek zlota na mapie
             for (uint32_t i = 0; i < MAX_GOLD_ITEMS; ++i) {
                 GoldItem& gold = state.gold_items[i];
                 if (!gold.is_active) continue;
@@ -281,6 +285,7 @@ int main() {
                 }
             }
 
+            // rysowanie gornego paska statusu
             DrawRectangle(0, 0, 1280, 45, Color{ 0, 0, 0, 180 });
 
             char round_txt[32];
@@ -305,6 +310,7 @@ int main() {
 
             DrawText("[B] SHOP | [SPACE] READY (In Lobby)", 420, 15, 14, LIGHTGRAY);
 
+            // rysowanie menu lobby
             if (state.state == 0) {
                 DrawRectangle(440, 200, 400, 360, Color{ 0, 0, 0, 200 });
                 DrawRectangleLines(440, 200, 400, 360, GOLD);
@@ -344,6 +350,7 @@ int main() {
                 }
             }
 
+            // rysowanie ekranu podsumowania rundy
             if (state.state == 2) {
                 DrawRectangle(400, 220, 480, 280, Color{ 0, 0, 0, 210 });
                 DrawRectangleLines(400, 220, 480, 280, GOLD);
@@ -373,6 +380,7 @@ int main() {
                 DrawText("Starting next round...", 525, 470, 14, GRAY);
             }
 
+            // rysowanie ekranu konca gry
             if (state.state == 3) {
                 DrawRectangle(380, 160, 520, 400, Color{ 0, 0, 0, 220 });
                 DrawRectangleLines(380, 160, 520, 400, GOLD);
@@ -415,6 +423,7 @@ int main() {
                 DrawText("Returning to Lobby...", 555, 520, 14, GRAY);
             }
 
+            // rysowanie sklepu z ulepszeniami
             if (is_shop_open && state.state == 1) {
                 Player my_player;
                 bool is_found_me = false;
@@ -437,8 +446,6 @@ int main() {
                     char shop_gold_txt[64];
                     std::sprintf(shop_gold_txt, "Gold Stored in Base: %d", my_player.gold_in_base);
                     DrawText(shop_gold_txt, 380, 150, 18, MAROON);
-
-                    DrawText("Upgrades buyable with base gold. Passive upgrades carry over rounds.", 380, 175, 13, DARKGRAY);
 
                     struct ShopItem {
                         int index;
@@ -494,6 +501,7 @@ int main() {
                 }
             }
 
+            // rysowanie powiadomien
             {
                 int notif_y = 680;
                 for (int i = static_cast<int>(notifications.size()) - 1; i >= 0 && i >= static_cast<int>(notifications.size()) - 5; --i) {

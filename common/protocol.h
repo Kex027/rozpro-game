@@ -1,14 +1,11 @@
 #ifndef PROTOCOL_H
 #define PROTOCOL_H
 
-#include "game_types.h"
-
 #pragma pack(push, 1)
 
-// Packet framing header
 struct PacketHeader {
-    uint16_t type;    // PacketType
-    uint32_t length;  // Length of the payload following this header
+    uint16_t type;
+    uint32_t length;
 };
 
 // Client to Server packets
@@ -39,7 +36,7 @@ struct MsgClientInput {
 };
 
 struct MsgClientBuy {
-    uint32_t item_index; // 0: speed, 1: gold mult, 2: base defense, 3: weapon, 4: thief
+    uint32_t item_index; // 0: speed, 1: gold mult
 };
 
 struct MsgServerJoinAck {
