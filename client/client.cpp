@@ -16,7 +16,7 @@ struct Notification {
 };
 static std::vector<Notification> notifications;
 
-static char name_input[32] = "GoldDigger";
+static char name_input[32] = "kox";
 static char ip_input[32] = "127.0.0.1";
 static int active_input_box = 0;
 static bool is_shop_open = false;

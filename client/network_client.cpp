@@ -124,14 +124,14 @@ bool network_connect(const char* ip, int port, const char* name) {
 
     if (inet_pton(AF_INET, ip, &serv_addr.sin_addr) <= 0) {
         error = "invalid ip";
-        close_socket(socket);
+        closesocket(socket);
         return false;
     }
 
     // handshake
     if (connect(socket, reinterpret_cast<struct sockaddr*>(&serv_addr), sizeof(serv_addr)) == SOCKET_ERROR) {
         error = "connection refused";
-        close_socket(socket);
+        closesocket(socket);
         return false;
     }
 
@@ -152,7 +152,7 @@ bool network_connect(const char* ip, int port, const char* name) {
     
     if (!send_raw_packet(socket, MSG_CLIENT_JOIN, &join_msg, sizeof(join_msg))) {
         error = "failed to send join request";
-        close_socket(socket);
+        closesocket(socket);
         is_connected = false;
         return false;
     }
