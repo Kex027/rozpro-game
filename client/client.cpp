@@ -227,11 +227,7 @@ int main() {
                 DrawText(label, static_cast<int>(b.pos.x - label_w / 2), static_cast<int>(b.pos.y - BASE_RADIUS - 20), 14, WHITE);
             }
 
-            DrawCircle(static_cast<int>(CENTER_X), static_cast<int>(CENTER_Y), MINE_RADIUS + 5.0f, DARKGRAY);
             DrawCircle(static_cast<int>(CENTER_X), static_cast<int>(CENTER_Y), MINE_RADIUS, BLACK);
-            DrawRectangle(static_cast<int>(CENTER_X - MINE_RADIUS + 10), static_cast<int>(CENTER_Y - 8), static_cast<int>(MINE_RADIUS * 2 - 20), 16, BROWN);
-            DrawRectangle(static_cast<int>(CENTER_X - 8), static_cast<int>(CENTER_Y - MINE_RADIUS + 10), 16, static_cast<int>(MINE_RADIUS * 2 - 20), BROWN);
-            DrawCircle(static_cast<int>(CENTER_X), static_cast<int>(CENTER_Y), MINE_RADIUS - 18.0f, Color{ 45, 45, 45, 255 });
             DrawText("MINE", static_cast<int>(CENTER_X - 16), static_cast<int>(CENTER_Y - 8), 14, GOLD);
 
             for (uint32_t i = 0; i < MAX_GOLD_ITEMS; ++i) {
@@ -256,10 +252,6 @@ int main() {
 
                 DrawCircle(static_cast<int>(p.pos.x), static_cast<int>(p.pos.y), PLAYER_RADIUS, color);
                 DrawCircleLines(static_cast<int>(p.pos.x), static_cast<int>(p.pos.y), PLAYER_RADIUS, BLACK);
-
-                DrawCircle(static_cast<int>(p.pos.x), static_cast<int>(p.pos.y), PLAYER_RADIUS * 0.55f, dark_color);
-                DrawCircleLines(static_cast<int>(p.pos.x), static_cast<int>(p.pos.y), PLAYER_RADIUS * 0.55f, BLACK);
-                DrawCircleLines(static_cast<int>(p.pos.x), static_cast<int>(p.pos.y), PLAYER_RADIUS * 0.62f, BLACK);
 
                 if (p.id == my_id) {
                     DrawCircleLines(static_cast<int>(p.pos.x), static_cast<int>(p.pos.y), PLAYER_RADIUS + 4.0f, YELLOW);
@@ -378,7 +370,7 @@ int main() {
                     DrawText(score_line, 450, 360 + i * 24, 16, WHITE);
                 }
 
-                DrawText("Starting next round shortly...", 525, 470, 14, GRAY);
+                DrawText("Starting next round...", 525, 470, 14, GRAY);
             }
 
             if (state.state == 3) {
