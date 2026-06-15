@@ -10,8 +10,6 @@
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #pragma comment(lib, "ws2_32.lib")
-typedef int socklen_t;
-#define close_socket closesocket
 
 static SOCKET socket = INVALID_SOCKET;
 static bool is_connected = false;
@@ -101,7 +99,7 @@ static void network_receive_loop() {
         }
     }
     
-    close_socket(socket);
+    closesocket(socket);
     socket = INVALID_SOCKET;
     is_connected = false;
 }
@@ -169,14 +167,14 @@ void network_disconnect() {
     is_running = false;
     is_connected = false;
     if (socket != INVALID_SOCKET) {
-        close_socket(socket);
+        closesocket(socket);
         socket = INVALID_SOCKET;
     }
 
     WSACleanup();
 }
 
-bool network_send_user_position(float dx, float dy) {
+bool network_send_input(float dx, float dy) {
     if (!is_connected) return false;
     MsgClientInput msg;
     msg.dx = dx;

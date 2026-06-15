@@ -14,12 +14,12 @@ struct Notification {
     std::string text;
     float timer;
 };
-static std::vector<Notification> g_notifications;
+static std::vector<Notification> notifications;
 
-static char g_name_input[32] = "GoldDigger";
-static char g_ip_input[32] = "127.0.0.1";
-static int g_active_input_box = 0;
-static bool g_shop_open = false;
+static char name_input[32] = "GoldDigger";
+static char ip_input[32] = "127.0.0.1";
+static int active_input_box = 0;
+static bool is_shop_open = false;
 
 Color GetPlayerColor(uint32_t index) {
     switch (index) {
@@ -67,14 +67,14 @@ int main() {
                 Notification notif;
                 notif.text = alert;
                 notif.timer = 4.0f;
-                g_notifications.push_back(notif);
+                notifications.push_back(notif);
             }
         }
 
-        for (auto it = g_notifications.begin(); it != g_notifications.end();) {
+        for (auto it = notifications.begin(); it != notifications.end();) {
             it->timer -= dt;
             if (it->timer <= 0) {
-                it = g_notifications.erase(it);
+                it = notifications.erase(it);
             } else {
                 ++it;
             }
@@ -83,32 +83,40 @@ int main() {
         if (!connected) {
             int key = GetCharPressed();
             while (key > 0) {
-                if (g_active_input_box == 0) {
-                    HandleTextBoxInput(g_name_input, 15, key);
-                } else if (g_active_input_box == 1) {
-                    HandleTextBoxInput(g_ip_input, 16, key);
+                if (active_input_box == 0) {
+                    HandleTextBoxInput(name_input, 15, key);
+                } else if (active_input_box == 1) {
+                    HandleTextBoxInput(ip_input, 16, key);
                 }
                 key = GetCharPressed();
             }
             if (IsKeyPressed(KEY_BACKSPACE)) {
-                if (g_active_input_box == 0) {
-                    HandleTextBoxInput(g_name_input, 15, KEY_BACKSPACE);
-                } else if (g_active_input_box == 1) {
-                    HandleTextBoxInput(g_ip_input, 16, KEY_BACKSPACE);
+                if (active_input_box == 0) {
+                    HandleTextBoxInput(name_input, 15, KEY_BACKSPACE);
+                } else if (active_input_box == 1) {
+                    HandleTextBoxInput(ip_input, 16, KEY_BACKSPACE);
                 }
             }
 
             if (IsKeyPressed(KEY_TAB)) {
-                g_active_input_box = (g_active_input_box + 1) % 2;
+                active_input_box = (active_input_box + 1) % 2;
             }
 
             if (IsKeyPressed(KEY_ENTER)) {
-                Network_Connect(g_ip_input, 5000, g_name_input);
+                network_connect(ip_input, 5000, name_input);
+            }
+
+            for (auto& w : waves) {
+                w.pos.x -= w.speed * 10.0f * dt;
+                if (w.pos.x < -w.radius) {
+                    w.pos.x = 1280 + w.radius;
+                    w.pos.y = static_cast<float>(std::rand() % 720);
+                }
             }
         }
         else {
             GameState state_copy = network_get_state();
-            uint32_t my_id = Network_GetMyPlayerId();
+            uint32_t my_id = network_get_player_id();
 
             Player my_player;
             bool found_me = false;
@@ -122,11 +130,15 @@ int main() {
 
             if (found_me && my_player.is_active) {
                 if (IsKeyPressed(KEY_B)) {
-                    g_shop_open = !g_shop_open;
+                    is_shop_open = !is_shop_open;
+                }
+
+                if (IsKeyPressed(KEY_F) && my_player.is_attack_weapon_active) {
+                    network_send_attack();
                 }
 
                 if (state_copy.state == 0 && IsKeyPressed(KEY_SPACE)) {
-                    Network_SendReady(!my_player.is_ready);
+                    network_send_ready(!my_player.is_ready);
                 }
 
                 float dx = 0.0f;
@@ -145,13 +157,12 @@ int main() {
                 static float last_send_time = 0;
                 last_send_time += dt;
                 if (last_send_time >= 0.015f) {
-                    Network_SendInput(dx, dy);
+                    network_send_input(dx, dy);
                     last_send_time = 0.0f;
                 }
             }
         }
 
-        // SEKCJA RYSOWANIA - Wywoływana w każdej klatce niezależnie od stanu connected
         BeginDrawing();
         ClearBackground(Color{ 40, 80, 150, 255 });
 
@@ -165,20 +176,20 @@ int main() {
             DrawText("NICKNAME:", 450, 250, 20, BLACK);
             Rectangle name_rect = Rectangle{ 450, 280, 380, 40 };
             DrawRectangleRec(name_rect, WHITE);
-            DrawRectangleLinesEx(name_rect, g_active_input_box == 0 ? 3 : 1, g_active_input_box == 0 ? GOLD : DARKGRAY);
-            DrawText(g_name_input, 465, 290, 22, BLACK);
-            if (g_active_input_box == 0 && (int)(GetTime() * 2) % 2 == 0) {
-                int cursor_pos = MeasureText(g_name_input, 22) + 470;
+            DrawRectangleLinesEx(name_rect, active_input_box == 0 ? 3 : 1, active_input_box == 0 ? GOLD : DARKGRAY);
+            DrawText(name_input, 465, 290, 22, BLACK);
+            if (active_input_box == 0 && (int)(GetTime() * 2) % 2 == 0) {
+                int cursor_pos = MeasureText(name_input, 22) + 470;
                 DrawLine(cursor_pos, 285, cursor_pos, 315, BLACK);
             }
 
             DrawText("SERVER IP ADDRESS:", 450, 360, 20, BLACK);
             Rectangle ip_rect = Rectangle{ 450, 390, 380, 40 };
             DrawRectangleRec(ip_rect, WHITE);
-            DrawRectangleLinesEx(ip_rect, g_active_input_box == 1 ? 3 : 1, g_active_input_box == 1 ? GOLD : DARKGRAY);
-            DrawText(g_ip_input, 465, 400, 22, BLACK);
-            if (g_active_input_box == 1 && (int)(GetTime() * 2) % 2 == 0) {
-                int cursor_pos = MeasureText(g_ip_input, 22) + 470;
+            DrawRectangleLinesEx(ip_rect, active_input_box == 1 ? 3 : 1, active_input_box == 1 ? GOLD : DARKGRAY);
+            DrawText(ip_input, 465, 400, 22, BLACK);
+            if (active_input_box == 1 && (int)(GetTime() * 2) % 2 == 0) {
+                int cursor_pos = MeasureText(ip_input, 22) + 470;
                 DrawLine(cursor_pos, 395, cursor_pos, 425, BLACK);
             }
 
@@ -190,10 +201,10 @@ int main() {
             DrawText("ENTER LOBBY", 565, 492, 22, WHITE);
 
             if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
-                if (CheckCollisionPointRec(mouse, name_rect)) g_active_input_box = 0;
-                else if (CheckCollisionPointRec(mouse, ip_rect)) g_active_input_box = 1;
+                if (CheckCollisionPointRec(mouse, name_rect)) active_input_box = 0;
+                else if (CheckCollisionPointRec(mouse, ip_rect)) active_input_box = 1;
                 else if (hovered) {
-                    Network_Connect(g_ip_input, 5000, g_name_input);
+                    network_connect(ip_input, 5000, name_input);
                 }
             }
 
@@ -205,11 +216,12 @@ int main() {
 
             DrawText("Controls: Use TAB to switch fields. Press ENTER to connect.", 440, 595, 14, DARKGRAY);
         } else {
-            GameState state = Network_GetState();
-            uint32_t my_id = Network_GetMyPlayerId();
+            GameState state = network_get_state();
+            uint32_t my_id = network_get_player_id();
 
             DrawRectangle(30, 30, (int)MAP_WIDTH - 60, (int)MAP_HEIGHT - 60, Color{ 245, 222, 179, 255 });
             DrawRectangleLinesEx(Rectangle{ 30, 30, MAP_WIDTH - 60, MAP_HEIGHT - 60 }, 5, Color{ 215, 185, 120, 255 });
+
             for (uint32_t i = 0; i < state.player_count; ++i) {
                 Base& b = state.bases[i];
                 if (!b.is_active) continue;
@@ -228,8 +240,8 @@ int main() {
                 DrawText(label, static_cast<int>(b.pos.x - label_w / 2), static_cast<int>(b.pos.y - BASE_RADIUS - 20), 14, WHITE);
             }
 
-            DrawCircle(static_cast<int>(CENTER_X), static_cast<int>(CENTER_Y), (MINE_RADIUS * 0.7f) + 3.0f, DARKGRAY);
-            DrawCircle(static_cast<int>(CENTER_X), static_cast<int>(CENTER_Y), MINE_RADIUS * 0.7f, BLACK);
+            DrawCircle(static_cast<int>(CENTER_X), static_cast<int>(CENTER_Y), MINE_RADIUS + 5.0f, DARKGRAY);
+            DrawCircle(static_cast<int>(CENTER_X), static_cast<int>(CENTER_Y), MINE_RADIUS, BLACK);
             DrawRectangle(static_cast<int>(CENTER_X - MINE_RADIUS + 10), static_cast<int>(CENTER_Y - 8), static_cast<int>(MINE_RADIUS * 2 - 20), 16, BROWN);
             DrawRectangle(static_cast<int>(CENTER_X - 8), static_cast<int>(CENTER_Y - MINE_RADIUS + 10), 16, static_cast<int>(MINE_RADIUS * 2 - 20), BROWN);
             DrawCircle(static_cast<int>(CENTER_X), static_cast<int>(CENTER_Y), MINE_RADIUS - 18.0f, Color{ 45, 45, 45, 255 });
@@ -285,8 +297,7 @@ int main() {
                     float spin = GetTime() * 10.0f;
                     DrawCircleLines(static_cast<int>(p.pos.x + 10 * std::cos(spin)), static_cast<int>(p.pos.y - 10 + 5 * std::sin(spin)), 2, YELLOW);
                     DrawCircleLines(static_cast<int>(p.pos.x + 10 * std::cos(spin + 3.14f)), static_cast<int>(p.pos.y - 10 + 5 * std::sin(spin + 3.14f)), 2, YELLOW);
-                }
-                else if (p.slow_timer > 0) {
+                } else if (p.slow_timer > 0) {
                     DrawText("SLOWED", static_cast<int>(p.pos.x - 22), static_cast<int>(p.pos.y - PLAYER_RADIUS - 28), 12, GREEN);
                 }
             }
@@ -296,14 +307,11 @@ int main() {
             char round_txt[32];
             if (state.state == 0) {
                 std::strcpy(round_txt, "LOBBY");
-            }
-            else if (state.state == 1) {
+            } else if (state.state == 1) {
                 std::sprintf(round_txt, "ROUND %d / %d", state.round_number, TOTAL_ROUNDS);
-            }
-            else if (state.state == 2) {
+            } else if (state.state == 2) {
                 std::sprintf(round_txt, "ROUND %d OVER", state.round_number);
-            }
-            else {
+            } else {
                 std::strcpy(round_txt, "GAME OVER");
             }
             DrawText(round_txt, 30, 12, 20, GOLD);
@@ -311,13 +319,12 @@ int main() {
             char timer_txt[32];
             if (state.state == 1) {
                 std::sprintf(timer_txt, "TIME REMAINING: %.0fs", state.round_timer);
-            }
-            else {
+            } else {
                 std::strcpy(timer_txt, "");
             }
             DrawText(timer_txt, 980, 12, 20, WHITE);
 
-            DrawText("[B] SHOP | [SPACE] READY (In Lobby)", 420, 15, 14, LIGHTGRAY);
+            DrawText("[B] SHOP | [F] ATTACK (If Unlocked) | [SPACE] READY (In Lobby)", 420, 15, 14, LIGHTGRAY);
 
             if (state.state == 0) {
                 DrawRectangle(440, 200, 400, 360, Color{ 0, 0, 0, 200 });
@@ -334,8 +341,7 @@ int main() {
                     DrawText(p.name, 510, 332 + i * 35, 16, WHITE);
                     if (p.is_ready) {
                         DrawText("READY", 720, 332 + i * 35, 16, LIME);
-                    }
-                    else {
+                    } else {
                         DrawText("NOT READY", 720, 332 + i * 35, 16, RED);
                     }
                 }
@@ -353,7 +359,7 @@ int main() {
                         DrawText(r_txt, 540 + (200 - MeasureText(r_txt, 18)) / 2, 502, 18, BLACK);
 
                         if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && r_hover) {
-                            Network_SendReady(!my_ready);
+                            network_send_ready(!my_ready);
                         }
                     }
                 }
@@ -414,23 +420,23 @@ int main() {
                 for (uint32_t i = 0; i < state.player_count; ++i) {
                     leaderboard.push_back({ state.players[i].name, state.players[i].rounds_won, state.players[i].total_gold_all_rounds });
                 }
-                std::sort(leaderboard.begin(), leaderboard.end(), [](const LeaderboardEntry& a, const LeaderboardEntry& b) {
+                std::sort(leaderboard.begin(), leaderboard.end(), [](const LeaderboardEntry& a, const LeaderboardEntry& b){
                     if (a.rounds_won != b.rounds_won) return a.rounds_won > b.rounds_won;
                     return a.total_gold > b.total_gold;
-                    });
+                });
 
                 DrawText("FINAL LEADERBOARD:", 420, 290, 18, LIGHTGRAY);
                 for (size_t i = 0; i < leaderboard.size(); ++i) {
                     char place_txt[128];
-                    std::sprintf(place_txt, "#%d %s  -  Rounds Won: %d  (Total Gold: %d)",
-                        (int)i + 1, leaderboard[i].name.c_str(), leaderboard[i].rounds_won, leaderboard[i].total_gold);
+                    std::sprintf(place_txt, "#%d %s  -  Rounds Won: %d  (Total Gold: %d)", 
+                                 (int)i + 1, leaderboard[i].name.c_str(), leaderboard[i].rounds_won, leaderboard[i].total_gold);
                     DrawText(place_txt, 420, 330 + i * 30, 16, i == 0 ? YELLOW : WHITE);
                 }
 
                 DrawText("Returning to Lobby...", 555, 520, 14, GRAY);
             }
 
-            if (g_shop_open && state.state == 1) {
+            if (is_shop_open && state.state == 1) {
                 Player my_player;
                 bool found_me = false;
                 for (uint32_t i = 0; i < state.player_count; ++i) {
@@ -443,6 +449,7 @@ int main() {
 
                 if (found_me) {
                     DrawRectangle(0, 0, 1280, 720, Color{ 0, 0, 0, 180 });
+
                     DrawRectangle(340, 80, 600, 560, Color{ 235, 195, 135, 255 });
                     DrawRectangleLinesEx(Rectangle{ 340, 80, 600, 560 }, 3, GOLD);
 
@@ -493,7 +500,7 @@ int main() {
                             DrawText(cost_txt, static_cast<int>(780 + (110 - MeasureText(cost_txt, 14)) / 2), y_pos + 27, 14, BLACK);
 
                             if (affordable && buy_hover && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
-                                Network_SendBuy(static_cast<uint32_t>(shop_items[i].index));
+                                network_send_buy(static_cast<uint32_t>(shop_items[i].index));
                             }
                         }
                     }
@@ -502,34 +509,34 @@ int main() {
                     if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
                         Vector2 mouse = GetMousePosition();
                         if (mouse.x < 340 || mouse.x > 940 || mouse.y < 80 || mouse.y > 640) {
-                            g_shop_open = false;
+                            is_shop_open = false;
                         }
                     }
                 }
             }
-        }
 
-        {
-            int notif_y = 680;
-            for (int i = static_cast<int>(g_notifications.size()) - 1; i >= 0 && i >= static_cast<int>(g_notifications.size()) - 5; --i) {
-                Notification& n = g_notifications[i];
-                unsigned char alpha = 255;
-                if (n.timer < 1.0f) {
-                    alpha = static_cast<unsigned char>(n.timer * 255);
+            {
+                int notif_y = 680;
+                for (int i = static_cast<int>(notifications.size()) - 1; i >= 0 && i >= static_cast<int>(notifications.size()) - 5; --i) {
+                    Notification& n = notifications[i];
+                    unsigned char alpha = 255;
+                    if (n.timer < 1.0f) {
+                        alpha = static_cast<unsigned char>(n.timer * 255);
+                    }
+
+                    int text_w = MeasureText(n.text.c_str(), 14);
+                    DrawRectangle(25, notif_y - 22, text_w + 16, 24, Color{ 0, 0, 0, static_cast<unsigned char>(alpha * 0.7f) });
+                    DrawRectangleLines(25, notif_y - 22, text_w + 16, 24, Color{ 255, 215, 0, alpha });
+                    DrawText(n.text.c_str(), 33, notif_y - 18, 14, Color{ 255, 255, 255, alpha });
+                    notif_y -= 28;
                 }
-
-                int text_w = MeasureText(n.text.c_str(), 14);
-                DrawRectangle(25, notif_y - 22, text_w + 16, 24, Color{ 0, 0, 0, static_cast<unsigned char>(alpha * 0.7f) });
-                DrawRectangleLines(25, notif_y - 22, text_w + 16, 24, Color{ 255, 215, 0, alpha });
-                DrawText(n.text.c_str(), 33, notif_y - 18, 14, Color{ 255, 255, 255, alpha });
-                notif_y -= 28;
             }
         }
 
         EndDrawing();
     }
 
-    Network_Disconnect();
+    network_disconnect();
     CloseWindow();
     return 0;
 }

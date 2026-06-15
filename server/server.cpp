@@ -5,16 +5,16 @@
 #include <mutex>
 #include <chrono>
 #include <cmath>
+#include <algorithm>
 #include <cstring>
 #include <string>
 #include <cstdlib>
+
 #define WIN32_LEAN_AND_MEAN
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #pragma comment(lib, "ws2_32.lib")
-typedef int socklen_t;
-#define close_socket closesocket
-inline int get_last_socket_error() { return WSAGetLastError(); }
+
 #include "../common/game_types.h"
 #include "../common/protocol.h"
 
@@ -391,13 +391,13 @@ void game_tick_loop() {
                 for (uint32_t i = 0; i < g_game_state.player_count; ++i) {
                     Player& p = g_game_state.players[i];
                     if (!p.is_active) continue;
-                    
+
                     // Calculate speed
                     float current_speed = p.has_speed_upgrade ? PLAYER_UPGRADED_SPEED : PLAYER_BASE_SPEED;
                     if (p.slow_timer > 0) {
                         current_speed *= BASE_DEFENSE_SLOW_FACTOR;
                     }
-                    
+
                     // Boundaries clamp
                     if (p.pos.x < PLAYER_RADIUS) p.pos.x = PLAYER_RADIUS;
                     if (p.pos.x > MAP_WIDTH - PLAYER_RADIUS) p.pos.x = MAP_WIDTH - PLAYER_RADIUS;
@@ -614,14 +614,11 @@ void game_tick_loop() {
 int main() {
     std::srand(static_cast<unsigned>(std::time(nullptr)));
     
-    // Initialize winsock if on Windows
-#ifdef _WIN32
     WSADATA wsa_data;
     if (WSAStartup(MAKEWORD(2, 2), &wsa_data) != 0) {
         std::cerr << "[Server] Failed to initialize Winsock." << std::endl;
         return 1;
     }
-#endif
 
     SOCKET listenfd = socket(AF_INET, SOCK_STREAM, 0);
     if (listenfd == INVALID_SOCKET) {
@@ -631,11 +628,7 @@ int main() {
     
     // Allow address reuse
     int opt = 1;
-#ifdef _WIN32
     setsockopt(listenfd, SOL_SOCKET, SO_REUSEADDR, reinterpret_cast<const char*>(&opt), sizeof(opt));
-#else
-    setsockopt(listenfd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
-#endif
 
     struct sockaddr_in serv_addr;
     std::memset(&serv_addr, 0, sizeof(serv_addr));
@@ -742,9 +735,7 @@ int main() {
 
     g_server_running = false;
     close_socket(listenfd);
-    
-#ifdef _WIN32
+
     WSACleanup();
-#endif
     return 0;
 }
