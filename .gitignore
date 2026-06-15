@@ -30,3 +30,6 @@ bin/
 .DS_Store
 Thumbs.db
 Desktop.ini
+
+.idea
+cmake-build-debug

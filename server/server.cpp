@@ -5,32 +5,16 @@
 #include <mutex>
 #include <chrono>
 #include <cmath>
-#include <algorithm>
 #include <cstring>
 #include <string>
 #include <cstdlib>
-
-#ifdef _WIN32
-    #define WIN32_LEAN_AND_MEAN
-    #include <winsock2.h>
-    #include <ws2tcpip.h>
-    #pragma comment(lib, "ws2_32.lib")
-    typedef int socklen_t;
-    #define close_socket closesocket
-    inline int get_last_socket_error() { return WSAGetLastError(); }
-#else
-    #include <sys/socket.h>
-    #include <netinet/in.h>
-    #include <arpa/inet.h>
-    #include <unistd.h>
-    #include <sys/types.h>
-    typedef int SOCKET;
-    #define INVALID_SOCKET -1
-    #define SOCKET_ERROR -1
-    #define close_socket close
-    inline int get_last_socket_error() { return errno; }
-#endif
-
+#define WIN32_LEAN_AND_MEAN
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#pragma comment(lib, "ws2_32.lib")
+typedef int socklen_t;
+#define close_socket closesocket
+inline int get_last_socket_error() { return WSAGetLastError(); }
 #include "../common/game_types.h"
 #include "../common/protocol.h"
 
@@ -114,14 +98,10 @@ void init_player_state(Player& p, uint32_t id, const char* name, uint32_t color_
     
     p.has_speed_upgrade = false;
     p.has_gold_multiplier = false;
-    p.has_base_defense = false;
-    p.has_attack_weapon = false;
-    p.has_thief_upgrade = false;
-    
+
     p.slow_timer = 0;
     p.stun_timer = 0;
-    p.attack_cooldown = 0;
-    
+
     p.is_ready = false;
     p.is_active = true;
     p.color_index = color_idx;
@@ -188,10 +168,7 @@ void reset_round() {
         Player& p = g_game_state.players[i];
         p.gold_carried = 0;
         p.gold_in_base = 0;
-        p.slow_timer = 0;
-        p.stun_timer = 0;
-        p.attack_cooldown = 0;
-        
+
         float angle = (2.0f * 3.14159f / MAX_PLAYERS) * p.color_index;
         p.pos.x = CENTER_X + (BASE_ROTATION_RADIUS - 50.0f) * std::cos(angle);
         p.pos.y = CENTER_Y + (BASE_ROTATION_RADIUS - 50.0f) * std::sin(angle);
@@ -210,9 +187,7 @@ void reset_round() {
     }
     
     // Spawn initial gold bars
-    for (int i = 0; i < 4; ++i) {
-        spawn_gold();
-    }
+    spawn_gold();
 }
 
 // Client connection thread handler
@@ -270,17 +245,8 @@ void client_handler(SOCKET client_socket, uint32_t player_id) {
                 break;
             }
             case MSG_CLIENT_INPUT: {
-                // If player is stunned, ignore movement input
-                if (player.stun_timer <= 0) {
-                    MsgClientInput* msg = reinterpret_cast<MsgClientInput*>(read_buffer);
-                    
-                    // Clamp input values to prevent speed hacking
-                    player.dir.x = std::max(-1.0f, std::min(1.0f, msg->dx));
-                    player.dir.y = std::max(-1.0f, std::min(1.0f, msg->dy));
-                } else {
-                    player.dir.x = 0;
-                    player.dir.y = 0;
-                }
+                player.dir.x = 0;
+                player.dir.y = 0;
                 break;
             }
             case MSG_CLIENT_BUY: {
@@ -291,9 +257,6 @@ void client_handler(SOCKET client_socket, uint32_t player_id) {
                 uint32_t cost = 999;
                 if (item == 0) cost = COST_SPEED_BOOST;
                 else if (item == 1) cost = COST_GOLD_MULTIPLIER;
-                else if (item == 2) cost = COST_BASE_DEFENSE;
-                else if (item == 3) cost = COST_ATTACK_WEAPON;
-                else if (item == 4) cost = COST_THIEF_UPGRADE;
                 
                 if (player.gold_in_base >= cost) {
                     bool bought = false;
@@ -303,66 +266,12 @@ void client_handler(SOCKET client_socket, uint32_t player_id) {
                     } else if (item == 1 && !player.has_gold_multiplier) {
                         player.has_gold_multiplier = true;
                         bought = true;
-                    } else if (item == 2 && !player.has_base_defense) {
-                        player.has_base_defense = true;
-                        bought = true;
-                    } else if (item == 3 && !player.has_attack_weapon) {
-                        player.has_attack_weapon = true;
-                        bought = true;
-                    } else if (item == 4 && !player.has_thief_upgrade) {
-                        player.has_thief_upgrade = true;
-                        bought = true;
                     }
-                    
                     if (bought) {
                         player.gold_in_base -= cost;
                         MsgServerAlert alert;
                         std::sprintf(alert.message, "%s bought upgrade %d!", player.name, item);
                         broadcast_packet(MSG_SERVER_ALERT, &alert, sizeof(alert));
-                    }
-                }
-                break;
-            }
-            case MSG_CLIENT_ATTACK: {
-                // Perform attack on nearest player
-                if (player.has_attack_weapon && player.stun_timer <= 0 && player.attack_cooldown <= 0) {
-                    int target_idx = -1;
-                    float min_dist = PLAYER_ATTACK_RANGE;
-                    
-                    for (uint32_t i = 0; i < g_game_state.player_count; ++i) {
-                        if (i == static_cast<uint32_t>(player_idx)) continue;
-                        Player& other = g_game_state.players[i];
-                        if (!other.is_active || other.stun_timer > 0) continue;
-                        
-                        float dx = other.pos.x - player.pos.x;
-                        float dy = other.pos.y - player.pos.y;
-                        float dist = std::sqrt(dx*dx + dy*dy);
-                        
-                        if (dist < min_dist) {
-                            min_dist = dist;
-                            target_idx = i;
-                        }
-                    }
-                    
-                    if (target_idx != -1) {
-                        Player& victim = g_game_state.players[target_idx];
-                        
-                        // Action verification: check if victim is not already stunned
-                        if (victim.stun_timer <= 0) {
-                            victim.stun_timer = PLAYER_STUN_DURATION;
-                            victim.dir.x = 0;
-                            victim.dir.y = 0;
-                            player.attack_cooldown = PLAYER_ATTACK_COOLDOWN;
-                            
-                            // Steal carried gold
-                            uint32_t stolen_gold = victim.gold_carried;
-                            victim.gold_carried = 0;
-                            player.gold_carried += stolen_gold;
-                            
-                            MsgServerAlert alert;
-                            std::sprintf(alert.message, "%s attacked %s and stole %d gold!", player.name, victim.name, stolen_gold);
-                            broadcast_packet(MSG_SERVER_ALERT, &alert, sizeof(alert));
-                        }
                     }
                 }
                 break;
@@ -483,21 +392,10 @@ void game_tick_loop() {
                     Player& p = g_game_state.players[i];
                     if (!p.is_active) continue;
                     
-                    // Tick stun & slow timers
-                    if (p.stun_timer > 0) p.stun_timer -= dt;
-                    if (p.slow_timer > 0) p.slow_timer -= dt;
-                    if (p.attack_cooldown > 0) p.attack_cooldown -= dt;
-                    
                     // Calculate speed
                     float current_speed = p.has_speed_upgrade ? PLAYER_UPGRADED_SPEED : PLAYER_BASE_SPEED;
                     if (p.slow_timer > 0) {
                         current_speed *= BASE_DEFENSE_SLOW_FACTOR;
-                    }
-                    
-                    // If stunned, cannot move
-                    if (p.stun_timer <= 0) {
-                        p.pos.x += p.dir.x * current_speed * dt;
-                        p.pos.y += p.dir.y * current_speed * dt;
                     }
                     
                     // Boundaries clamp
@@ -563,31 +461,6 @@ void game_tick_loop() {
                                     broadcast_packet(MSG_SERVER_ALERT, &alert, sizeof(alert));
                                     
                                     p.gold_carried = 0;
-                                }
-                            } else {
-                                // Standing on enemy base -> Steal gold!
-                                Player& enemy = g_game_state.players[j];
-                                if (enemy.gold_in_base > 0 && p.stun_timer <= 0) {
-                                    // Steal 10% (if thief upgrade) or 5% per second (converted to tick rate)
-                                    float base_steal_rate = p.has_thief_upgrade ? 0.10f : 0.05f;
-                                    uint32_t to_steal = static_cast<uint32_t>(enemy.gold_in_base * base_steal_rate * dt);
-                                    if (to_steal == 0 && enemy.gold_in_base > 0) {
-                                        // Steal at least 1 gold if they have any, at a slower rate (every 1 second)
-                                        if (std::rand() % 30 == 0) {
-                                            to_steal = 1;
-                                        }
-                                    }
-                                    
-                                    if (to_steal > 0) {
-                                        to_steal = std::min(to_steal, enemy.gold_in_base);
-                                        enemy.gold_in_base -= to_steal;
-                                        p.gold_carried += to_steal;
-                                        
-                                        // Base defense triggers slow effect on intruder
-                                        if (enemy.has_base_defense) {
-                                            p.slow_timer = BASE_DEFENSE_SLOW_DURATION;
-                                        }
-                                    }
                                 }
                             }
                         }
