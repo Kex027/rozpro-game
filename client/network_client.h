@@ -10,7 +10,6 @@ void network_disconnect();
 bool network_send_input(float dx, float dy);
 bool network_send_ready(bool ready);
 bool network_send_buy(uint32_t item_idx);
-bool network_send_attack();
 GameState network_get_state();
 std::vector<std::string> network_get_alerts();
 bool network_is_connected();

@@ -133,10 +133,6 @@ int main() {
                     is_shop_open = !is_shop_open;
                 }
 
-                if (IsKeyPressed(KEY_F) && my_player.is_attack_weapon_active) {
-                    network_send_attack();
-                }
-
                 if (state_copy.state == 0 && IsKeyPressed(KEY_SPACE)) {
                     network_send_ready(!my_player.is_ready);
                 }
