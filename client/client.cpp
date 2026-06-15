@@ -159,7 +159,6 @@ int main() {
             DrawRectangleLines(390, 100, 500, 520, GOLD);
 
             DrawText("GOLD FEVER", 490, 130, 48, GOLD);
-            DrawText("RTS-lite Time Management Game", 450, 190, 20, DARKGRAY);
 
             DrawText("NICKNAME:", 450, 250, 20, BLACK);
             Rectangle name_rect = Rectangle{ 450, 280, 380, 40 };
@@ -202,7 +201,7 @@ int main() {
                 DrawText(connection_err.c_str(), 640 - err_w / 2, 560, 18, RED);
             }
 
-            DrawText("Controls: Use TAB to switch fields. Press ENTER to connect.", 440, 595, 14, DARKGRAY);
+            DrawText("Press ENTER to connect.", 440, 595, 14, DARKGRAY);
         } else {
             GameState state = network_get_state();
             uint32_t my_id = network_get_player_id();
@@ -312,13 +311,13 @@ int main() {
             }
             DrawText(timer_txt, 980, 12, 20, WHITE);
 
-            DrawText("[B] SHOP | [F] ATTACK (If Unlocked) | [SPACE] READY (In Lobby)", 420, 15, 14, LIGHTGRAY);
+            DrawText("[B] SHOP | [SPACE] READY (In Lobby)", 420, 15, 14, LIGHTGRAY);
 
             if (state.state == 0) {
                 DrawRectangle(440, 200, 400, 360, Color{ 0, 0, 0, 200 });
                 DrawRectangleLines(440, 200, 400, 360, GOLD);
                 DrawText("LOBBY (TUTORIAL)", 530, 220, 24, GOLD);
-                DrawText("Move around with WASD to test controls.", 475, 260, 16, LIGHTGRAY);
+                DrawText("Move around with WSAD to test controls.", 475, 260, 16, LIGHTGRAY);
 
                 DrawText("PLAYERS:", 470, 300, 18, WHITE);
                 for (uint32_t i = 0; i < state.player_count; ++i) {

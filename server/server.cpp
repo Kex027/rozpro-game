@@ -145,9 +145,7 @@ void spawn_gold() {
             game_state.gold_items[i].is_active = true;
             
             // Alert players of gold spawn
-            MsgServerAlert alert;
-            std::sprintf(alert.message, "A new gold nugget was deposited near (%.0f, %.0f)", game_state.gold_items[i].pos.x, game_state.gold_items[i].pos.y);
-            broadcast_packet(MSG_SERVER_ALERT, &alert, sizeof(alert));
+            std::cout << "[Server] A new gold nugget was deposited near (" << game_state.gold_items[i].pos.x << ", " << game_state.gold_items[i].pos.y << ")" << std::endl;
             break;
         }
     }
@@ -275,9 +273,7 @@ void client_handler(SOCKET client_socket, uint32_t player_id) {
                     }
                     if (is_bought) {
                         player.gold_in_base -= cost;
-                        MsgServerAlert alert;
-                        std::sprintf(alert.message, "%s bought upgrade %d!", player.name, item);
-                        broadcast_packet(MSG_SERVER_ALERT, &alert, sizeof(alert));
+                        std::cout << "[Server] " << player.name << " bought upgrade " << item << "!" << std::endl;
                     }
                 }
                 break;
@@ -311,9 +307,7 @@ void client_handler(SOCKET client_socket, uint32_t player_id) {
                 }
             }
             
-            MsgServerAlert alert;
-            std::sprintf(alert.message, "%s left the game.", game_state.players[i].name);
-            broadcast_packet(MSG_SERVER_ALERT, &alert, sizeof(alert));
+            std::cout << "[Server] " << game_state.players[i].name << " left the game." << std::endl;
             break;
         }
     }
@@ -348,9 +342,7 @@ void game_tick_loop() {
                     game_state.round_number = 1;
                     reset_round();
                     
-                    MsgServerAlert alert;
-                    std::sprintf(alert.message, "Round 1 begins!");
-                    broadcast_packet(MSG_SERVER_ALERT, &alert, sizeof(alert));
+                    std::cout << "[Server] Round 1 begins!" << std::endl;
                 }
                 
                 // Allow simple movement in lobby
@@ -449,9 +441,7 @@ void game_tick_loop() {
                             }
                             p.gold_carried += added_gold;
                             
-                            MsgServerAlert alert;
-                            std::sprintf(alert.message, "%s picked up %d gold!", p.name, added_gold);
-                            broadcast_packet(MSG_SERVER_ALERT, &alert, sizeof(alert));
+                            std::cout << "[Server] " << p.name << " picked up " << added_gold << " gold!" << std::endl;
                         }
                     }
                     
@@ -470,9 +460,7 @@ void game_tick_loop() {
                                 if (p.gold_carried > 0) {
                                     p.gold_in_base += p.gold_carried;
                                     
-                                    MsgServerAlert alert;
-                                    std::sprintf(alert.message, "%s deposited %d gold in base!", p.name, p.gold_carried);
-                                    broadcast_packet(MSG_SERVER_ALERT, &alert, sizeof(alert));
+                                    std::cout << "[Server] " << p.name << " deposited " << p.gold_carried << " gold in base!" << std::endl;
                                     
                                     p.gold_carried = 0;
                                 }
@@ -534,16 +522,10 @@ void game_tick_loop() {
                         game_state.winner_id = game_state.players[winner_idx].id;
                         game_state.players[winner_idx].rounds_won++;
                         
-                        MsgServerAlert alert;
-                        std::sprintf(alert.message, "%s wins Round %d with %d gold!", 
-                                     game_state.players[winner_idx].name, 
-                                     game_state.round_number, max_gold);
-                        broadcast_packet(MSG_SERVER_ALERT, &alert, sizeof(alert));
+                        std::cout << "[Server] " << game_state.players[winner_idx].name << " wins Round " << game_state.round_number << " with " << max_gold << " gold!" << std::endl;
                     } else {
                         game_state.winner_id = 0; // Tie or no gold
-                        MsgServerAlert alert;
-                        std::sprintf(alert.message, "Round %d ends in a tie!", game_state.round_number);
-                        broadcast_packet(MSG_SERVER_ALERT, &alert, sizeof(alert));
+                        std::cout << "[Server] Round " << game_state.round_number << " ends in a tie!" << std::endl;
                     }
                     
                     // Check if game is completely over
@@ -596,9 +578,7 @@ void game_tick_loop() {
                     game_state.state = 1; // Resume playing next round
                     reset_round();
                     
-                    MsgServerAlert alert;
-                    std::sprintf(alert.message, "Round %d begins!", game_state.round_number);
-                    broadcast_packet(MSG_SERVER_ALERT, &alert, sizeof(alert));
+                    std::cout << "[Server] Round " << game_state.round_number << " begins!" << std::endl;
                 }
             } else if (game_state.state == 3) { // Game Over screen
                 state_timer -= dt;
@@ -738,9 +718,7 @@ int main() {
         
         std::cout << "[Server] Player '" << client.name << "' assigned ID " << player_id << std::endl;
         
-        MsgServerAlert alert;
-        std::sprintf(alert.message, "%s joined the lobby!", client.name.c_str());
-        broadcast_packet(MSG_SERVER_ALERT, &alert, sizeof(alert));
+        std::cout << "[Server] " << client.name << " joined the lobby!" << std::endl;
         
         // Spawn connection handler thread
         std::thread client_thread(client_handler, connfd, player_id);
