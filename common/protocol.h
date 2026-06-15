@@ -18,8 +18,7 @@ enum PacketType : uint16_t {
     MSG_CLIENT_READY = 102,    // Payload: MsgClientReady
     MSG_CLIENT_INPUT = 103,    // Payload: MsgClientInput
     MSG_CLIENT_BUY = 104,      // Payload: MsgClientBuy
-    MSG_CLIENT_ATTACK = 105,   // Payload: none (attacks nearest player in range)
-    
+
     // Server -> Client
     MSG_SERVER_JOIN_ACK = 201, // Payload: MsgServerJoinAck
     MSG_SERVER_STATE = 202,    // Payload: GameState

@@ -80,11 +80,11 @@ int main() {
 
     while (!WindowShouldClose()) {
         float dt = GetFrameTime();
-        bool connected = Network_IsConnected();
+        bool connected = network_is_connected();
         
         // Fetch new alerts from network module
         if (connected) {
-            std::vector<std::string> new_alerts = Network_GetAlerts();
+            std::vector<std::string> new_alerts = network_get_alerts();
             for (const auto& alert : new_alerts) {
                 Notification notif;
                 notif.text = alert;
@@ -143,7 +143,7 @@ int main() {
             }
         } else {
             // Game screen controls
-            GameState state_copy = Network_GetState();
+            GameState state_copy = network_get_state();
             uint32_t my_id = Network_GetMyPlayerId();
             
             // Find my player properties
@@ -161,11 +161,6 @@ int main() {
                 // Shop toggle
                 if (IsKeyPressed(KEY_B)) {
                     g_shop_open = !g_shop_open;
-                }
-                
-                // Attack trigger
-                if (IsKeyPressed(KEY_F) && my_player.has_attack_weapon) {
-                    Network_SendAttack();
                 }
                 
                 // Lobby Ready toggle
@@ -257,7 +252,7 @@ int main() {
             }
             
             // Connection error message display
-            std::string connection_err = Network_GetError();
+            std::string connection_err = network_get_error();
             if (!connection_err.empty()) {
                 int err_w = MeasureText(connection_err.c_str(), 18);
                 DrawText(connection_err.c_str(), 640 - err_w/2, 560, 18, RED);
@@ -267,7 +262,7 @@ int main() {
             
         } else {
             // --- DRAW GAME WORLD ---
-            GameState state = Network_GetState();
+            GameState state = network_get_state();
             uint32_t my_id = Network_GetMyPlayerId();
             
             // 1. Draw Sandy Island inside boundaries
