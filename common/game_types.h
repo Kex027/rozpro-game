@@ -26,11 +26,11 @@ struct Player {
     uint32_t rounds_won;        // Score of won rounds
     
     // Upgrade statuses
-    bool has_speed_upgrade;     // Pasywne: szybsze poruszanie
-    bool has_gold_multiplier;   // Pasywne: złoto warte więcej
-    bool has_base_defense;      // Ulepszenie bazy: spowalnia wrogów
-    bool has_attack_weapon;     // Broń: pozwala atakować innych i kraść niesione złoto
-    bool has_thief_upgrade;     // Pasywne: kradnie więcej % z wrogiej bazy
+    bool is_speed_upgraded;     // Pasywne: szybsze poruszanie
+    bool is_gold_multiplier_active;   // Pasywne: złoto warte więcej
+    bool is_base_defense_active;      // Ulepszenie bazy: spowalnia wrogów
+    bool is_attack_weapon_active;     // Broń: pozwala atakować innych i kraść niesione złoto
+    bool is_thief_upgrade_active;     // Pasywne: kradnie więcej % z wrogiej bazy
     
     // Status timers (in seconds, managed by server tick)
     float slow_timer;           // If > 0, player is slowed (e.g. from entering enemy protected base)

@@ -11,7 +11,7 @@
 #include <ws2tcpip.h>
 #pragma comment(lib, "ws2_32.lib")
 
-static SOCKET socket = INVALID_SOCKET;
+static SOCKET net_socket = INVALID_SOCKET;
 static bool is_connected = false;
 static uint32_t player_id = 0;
 static bool is_running = true;
@@ -20,7 +20,7 @@ static std::mutex state_mutex;
 
 static std::vector<std::string> alerts;
 static std::mutex alerts_mutex;
-static std::string error = "";
+static std::string error_msg = "";
 
 static bool send_raw_packet(SOCKET sock, uint16_t type, const void* payload, uint32_t payload_len) {
     PacketHeader header;
@@ -58,7 +58,7 @@ static void network_receive_loop() {
     
     while (is_running && is_connected) {
         PacketHeader header;
-        if (!recv_all(socket, reinterpret_cast<char*>(&header), sizeof(header))) {
+        if (!recv_all(net_socket, reinterpret_cast<char*>(&header), sizeof(header))) {
             std::cout << "[Network] Server closed connection." << std::endl;
             is_connected = false;
             break;
@@ -71,7 +71,7 @@ static void network_receive_loop() {
         }
         
         if (header.length > 0) {
-            if (!recv_all(socket, read_buffer, header.length)) {
+            if (!recv_all(net_socket, read_buffer, header.length)) {
                 is_connected = false;
                 break;
             }
@@ -99,21 +99,21 @@ static void network_receive_loop() {
         }
     }
     
-    closesocket(socket);
-    socket = INVALID_SOCKET;
+    closesocket(net_socket);
+    net_socket = INVALID_SOCKET;
     is_connected = false;
 }
 
 bool network_connect(const char* ip, int port, const char* name) {
     WSADATA wsa_data;
     if (WSAStartup(MAKEWORD(2, 2), &wsa_data) != 0) {
-        error = "winsock init failed";
+        error_msg = "winsock init failed";
         return false;
     }
 
-    socket = socket(AF_INET, SOCK_STREAM, 0);
-    if (socket == INVALID_SOCKET) {
-        error = "socket creation failed";
+    net_socket = ::socket(AF_INET, SOCK_STREAM, 0);
+    if (net_socket == INVALID_SOCKET) {
+        error_msg = "socket creation failed";
         return false;
     }
 
@@ -123,15 +123,15 @@ bool network_connect(const char* ip, int port, const char* name) {
     serv_addr.sin_port = htons(port);
 
     if (inet_pton(AF_INET, ip, &serv_addr.sin_addr) <= 0) {
-        error = "invalid ip";
-        closesocket(socket);
+        error_msg = "invalid ip";
+        closesocket(net_socket);
         return false;
     }
 
     // handshake
-    if (connect(socket, reinterpret_cast<struct sockaddr*>(&serv_addr), sizeof(serv_addr)) == SOCKET_ERROR) {
-        error = "connection refused";
-        closesocket(socket);
+    if (connect(net_socket, reinterpret_cast<struct sockaddr*>(&serv_addr), sizeof(serv_addr)) == SOCKET_ERROR) {
+        error_msg = "connection refused";
+        closesocket(net_socket);
         return false;
     }
 
@@ -150,9 +150,9 @@ bool network_connect(const char* ip, int port, const char* name) {
     std::strncpy(join_msg.name, name, sizeof(join_msg.name) - 1);
     join_msg.name[sizeof(join_msg.name) - 1] = '\0';
     
-    if (!send_raw_packet(socket, MSG_CLIENT_JOIN, &join_msg, sizeof(join_msg))) {
-        error = "failed to send join request";
-        closesocket(socket);
+    if (!send_raw_packet(net_socket, MSG_CLIENT_JOIN, &join_msg, sizeof(join_msg))) {
+        error_msg = "failed to send join request";
+        closesocket(net_socket);
         is_connected = false;
         return false;
     }
@@ -166,9 +166,9 @@ bool network_connect(const char* ip, int port, const char* name) {
 void network_disconnect() {
     is_running = false;
     is_connected = false;
-    if (socket != INVALID_SOCKET) {
-        closesocket(socket);
-        socket = INVALID_SOCKET;
+    if (net_socket != INVALID_SOCKET) {
+        closesocket(net_socket);
+        net_socket = INVALID_SOCKET;
     }
 
     WSACleanup();
@@ -179,21 +179,21 @@ bool network_send_input(float dx, float dy) {
     MsgClientInput msg;
     msg.dx = dx;
     msg.dy = dy;
-    return send_raw_packet(socket, MSG_CLIENT_INPUT, &msg, sizeof(msg));
+    return send_raw_packet(net_socket, MSG_CLIENT_INPUT, &msg, sizeof(msg));
 }
 
-bool network_send_ready(bool ready) {
+bool network_send_ready(bool is_ready) {
     if (!is_connected) return false;
     MsgClientReady msg;
-    msg.is_ready = ready;
-    return send_raw_packet(socket, MSG_CLIENT_READY, &msg, sizeof(msg));
+    msg.is_ready = is_ready;
+    return send_raw_packet(net_socket, MSG_CLIENT_READY, &msg, sizeof(msg));
 }
 
 bool network_send_buy(uint32_t item_idx) {
     if (!is_connected) return false;
     MsgClientBuy msg;
     msg.item_index = item_idx;
-    return send_raw_packet(socket, MSG_CLIENT_BUY, &msg, sizeof(msg));
+    return send_raw_packet(net_socket, MSG_CLIENT_BUY, &msg, sizeof(msg));
 }
 
 GameState network_get_state() {
@@ -213,7 +213,7 @@ bool network_is_connected() {
 }
 
 std::string network_get_error() {
-    return error;
+    return error_msg;
 }
 
 uint32_t network_get_player_id() {

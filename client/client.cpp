@@ -59,9 +59,9 @@ int main() {
 
     while (!WindowShouldClose()) {
         float dt = GetFrameTime();
-        bool connected = network_is_connected();
+        bool is_connected = network_is_connected();
 
-        if (connected) {
+        if (is_connected) {
             std::vector<std::string> new_alerts = network_get_alerts();
             for (const auto& alert : new_alerts) {
                 Notification notif;
@@ -80,7 +80,7 @@ int main() {
             }
         }
 
-        if (!connected) {
+        if (!is_connected) {
             int key = GetCharPressed();
             while (key > 0) {
                 if (active_input_box == 0) {
@@ -105,30 +105,22 @@ int main() {
             if (IsKeyPressed(KEY_ENTER)) {
                 network_connect(ip_input, 5000, name_input);
             }
-
-            for (auto& w : waves) {
-                w.pos.x -= w.speed * 10.0f * dt;
-                if (w.pos.x < -w.radius) {
-                    w.pos.x = 1280 + w.radius;
-                    w.pos.y = static_cast<float>(std::rand() % 720);
-                }
-            }
         }
         else {
             GameState state_copy = network_get_state();
             uint32_t my_id = network_get_player_id();
 
             Player my_player;
-            bool found_me = false;
+            bool is_found_me = false;
             for (uint32_t i = 0; i < state_copy.player_count; ++i) {
                 if (state_copy.players[i].id == my_id) {
                     my_player = state_copy.players[i];
-                    found_me = true;
+                    is_found_me = true;
                     break;
                 }
             }
 
-            if (found_me && my_player.is_active) {
+            if (is_found_me && my_player.is_active) {
                 if (IsKeyPressed(KEY_B)) {
                     is_shop_open = !is_shop_open;
                 }
@@ -162,7 +154,7 @@ int main() {
         BeginDrawing();
         ClearBackground(Color{ 40, 80, 150, 255 });
 
-        if (!connected) {
+        if (!is_connected) {
             DrawRectangle(390, 100, 500, 520, Color{ 235, 195, 135, 240 });
             DrawRectangleLines(390, 100, 500, 520, GOLD);
 
@@ -191,15 +183,15 @@ int main() {
 
             Rectangle btn_rect = Rectangle{ 530, 480, 220, 50 };
             Vector2 mouse = GetMousePosition();
-            bool hovered = CheckCollisionPointRec(mouse, btn_rect);
-            DrawRectangleRec(btn_rect, hovered ? GOLD : ORANGE);
+            bool is_hovered = CheckCollisionPointRec(mouse, btn_rect);
+            DrawRectangleRec(btn_rect, is_hovered ? GOLD : ORANGE);
             DrawRectangleLinesEx(btn_rect, 2, BLACK);
             DrawText("ENTER LOBBY", 565, 492, 22, WHITE);
 
             if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
                 if (CheckCollisionPointRec(mouse, name_rect)) active_input_box = 0;
                 else if (CheckCollisionPointRec(mouse, ip_rect)) active_input_box = 1;
-                else if (hovered) {
+                else if (is_hovered) {
                     network_connect(ip_input, 5000, name_input);
                 }
             }
@@ -344,18 +336,18 @@ int main() {
 
                 for (uint32_t i = 0; i < state.player_count; ++i) {
                     if (state.players[i].id == my_id) {
-                        bool my_ready = state.players[i].is_ready;
+                        bool is_my_ready = state.players[i].is_ready;
                         Rectangle r_btn = Rectangle{ 540, 490, 200, 45 };
-                        bool r_hover = CheckCollisionPointRec(GetMousePosition(), r_btn);
+                        bool is_r_hover = CheckCollisionPointRec(GetMousePosition(), r_btn);
 
-                        DrawRectangleRec(r_btn, my_ready ? LIME : (r_hover ? GOLD : ORANGE));
+                        DrawRectangleRec(r_btn, is_my_ready ? LIME : (is_r_hover ? GOLD : ORANGE));
                         DrawRectangleLinesEx(r_btn, 2, BLACK);
 
-                        const char* r_txt = my_ready ? "MARKED READY" : "MARK READY";
+                        const char* r_txt = is_my_ready ? "MARKED READY" : "MARK READY";
                         DrawText(r_txt, 540 + (200 - MeasureText(r_txt, 18)) / 2, 502, 18, BLACK);
 
-                        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && r_hover) {
-                            network_send_ready(!my_ready);
+                        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && is_r_hover) {
+                            network_send_ready(!is_my_ready);
                         }
                     }
                 }
@@ -434,16 +426,16 @@ int main() {
 
             if (is_shop_open && state.state == 1) {
                 Player my_player;
-                bool found_me = false;
+                bool is_found_me = false;
                 for (uint32_t i = 0; i < state.player_count; ++i) {
                     if (state.players[i].id == my_id) {
                         my_player = state.players[i];
-                        found_me = true;
+                        is_found_me = true;
                         break;
                     }
                 }
 
-                if (found_me) {
+                if (is_found_me) {
                     DrawRectangle(0, 0, 1280, 720, Color{ 0, 0, 0, 180 });
 
                     DrawRectangle(340, 80, 600, 560, Color{ 235, 195, 135, 255 });
@@ -462,12 +454,12 @@ int main() {
                         const char* name;
                         const char* desc;
                         int cost;
-                        bool owned;
+                        bool is_owned;
                     };
 
                     std::vector<ShopItem> shop_items = {
-                        { 0, "Speed Boots", "Increases speed by 45% (Passive)", static_cast<int>(COST_SPEED_BOOST), my_player.has_speed_upgrade },
-                        { 1, "Gold Pan Multiplier", "Gold is worth 1.5x (Passive)", static_cast<int>(COST_GOLD_MULTIPLIER), my_player.has_gold_multiplier }
+                        { 0, "Speed Boots", "Increases speed by 45% (Passive)", static_cast<int>(COST_SPEED_BOOST), my_player.is_speed_upgraded },
+                        { 1, "Gold Pan Multiplier", "Gold is worth 1.5x (Passive)", static_cast<int>(COST_GOLD_MULTIPLIER), my_player.is_gold_multiplier_active }
                     };
 
                     for (size_t i = 0; i < shop_items.size(); ++i) {
@@ -482,20 +474,20 @@ int main() {
                         std::sprintf(cost_txt, "%d Gold", shop_items[i].cost);
 
                         Rectangle buy_btn = Rectangle{ 780, static_cast<float>(y_pos + 15), 110, 40 };
-                        bool buy_hover = CheckCollisionPointRec(GetMousePosition(), buy_btn);
+                        bool is_buy_hover = CheckCollisionPointRec(GetMousePosition(), buy_btn);
 
-                        if (shop_items[i].owned) {
+                        if (shop_items[i].is_owned) {
                             DrawRectangleRec(buy_btn, LIGHTGRAY);
                             DrawText("OWNED", static_cast<int>(780 + (110 - MeasureText("OWNED", 14)) / 2), y_pos + 27, 14, DARKGRAY);
                         }
                         else {
-                            bool affordable = (my_player.gold_in_base >= static_cast<uint32_t>(shop_items[i].cost));
-                            DrawRectangleRec(buy_btn, buy_hover ? GOLD : (affordable ? ORANGE : RED));
+                            bool is_affordable = (my_player.gold_in_base >= static_cast<uint32_t>(shop_items[i].cost));
+                            DrawRectangleRec(buy_btn, is_buy_hover ? GOLD : (is_affordable ? ORANGE : RED));
                             DrawRectangleLinesEx(buy_btn, 1, BLACK);
 
                             DrawText(cost_txt, static_cast<int>(780 + (110 - MeasureText(cost_txt, 14)) / 2), y_pos + 27, 14, BLACK);
 
-                            if (affordable && buy_hover && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+                            if (is_affordable && is_buy_hover && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
                                 network_send_buy(static_cast<uint32_t>(shop_items[i].index));
                             }
                         }
