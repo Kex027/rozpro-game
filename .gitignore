@@ -1,0 +1,32 @@
+# CMake build and binary directories
+build/
+winbuild/
+out/
+bin/
+
+# Visual Studio / IDE files
+.vs/
+.vscode/
+*.user
+*.suo
+*.sln
+*.vcxproj
+*.filters
+*.db
+*.opendb
+
+# Compiled binaries and libraries
+*.exe
+*.o
+*.obj
+*.a
+*.lib
+*.dll
+*.so
+*.dylib
+*.out
+
+# Operating System files
+.DS_Store
+Thumbs.db
+Desktop.ini
