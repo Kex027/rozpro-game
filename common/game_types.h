@@ -4,13 +4,16 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+// make structs packed so network bytes align nicely
 #pragma pack(push, 1)
 
+// basic 2d vector for positions and directions
 struct Vec2 {
     float x;
     float y;
 };
 
+// player info we sync over network
 struct Player {
     uint32_t id;
     char name[32];
@@ -37,6 +40,7 @@ struct Player {
     uint32_t color_index;
 };
 
+// base on map, rotates around middle
 struct Base {
     uint32_t owner_id;
     Vec2 pos;
@@ -44,6 +48,7 @@ struct Base {
     bool is_active;
 };
 
+// gold nugget that spawns in middle mine
 struct GoldItem {
     uint32_t id;
     Vec2 pos;
@@ -54,6 +59,7 @@ struct GoldItem {
 #define MAX_PLAYERS 4
 #define MAX_GOLD_ITEMS 15
 
+// big state struct sent to clients every tick
 struct GameState {
     uint32_t state;
     uint32_t round_number;
@@ -71,7 +77,7 @@ struct GameState {
 
 #pragma pack(pop)
 
-// Game
+// map settings and sizes
 const float MAP_WIDTH = 1280.0f;
 const float MAP_HEIGHT = 720.0f;
 const float CENTER_X = 640.0f;
@@ -83,10 +89,10 @@ const float BASE_RADIUS = 40.0f;
 const float PLAYER_RADIUS = 22.0f;
 const float GOLD_RADIUS = 12.0f;
 
-// Gameplay
-const float PLAYER_BASE_SPEED = 180.0f; // Pixels per second
+// player speeds and slow constants
+const float PLAYER_BASE_SPEED = 180.0f; // px/sec
 const float PLAYER_UPGRADED_SPEED = 260.0f;
-const float BASE_SLOW_FACTOR = 0.5f; // Slow down when carrying gold
+const float BASE_SLOW_FACTOR = 0.5f; // if carrying gold
 const float BASE_DEFENSE_SLOW_FACTOR = 0.5f;
 const float BASE_DEFENSE_SLOW_DURATION = 5.0f;
 
@@ -94,12 +100,13 @@ const float PLAYER_STUN_DURATION = 2.5f;
 const float PLAYER_ATTACK_RANGE = 60.0f;
 const float PLAYER_ATTACK_COOLDOWN = 3.0f;
 
-const uint32_t GOLD_SPAWN_INTERVAL = 3; // Spawn every X seconds
+// gold spawning settings
+const uint32_t GOLD_SPAWN_INTERVAL = 3; // seconds
 const uint32_t MAX_GOLD_ON_MAP = 8;
 const uint32_t ROUND_DURATION = 30;
 const uint32_t TOTAL_ROUNDS = 3;
 
-// Shop costs
+// cost of upgrades in the shop
 const uint32_t COST_SPEED_BOOST = 15;
 const uint32_t COST_GOLD_MULTIPLIER = 25;
 const uint32_t COST_BASE_DEFENSE = 20;

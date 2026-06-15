@@ -18,7 +18,7 @@
 #include "../common/game_types.h"
 #include "../common/protocol.h"
 
-// Client connection information
+// client info for socket tracking
 struct Client {
     SOCKET socket;
     uint32_t player_id;
@@ -26,37 +26,43 @@ struct Client {
     std::string name;
 };
 
-// Global state variables
+// global game data stuff
 GameState game_state;
 std::vector<Client> clients;
 std::mutex state_mutex;
 bool is_server_running = true;
 
-// Helper to send a packed message to a single client
-bool send_packet(SOCKET sock, uint16_t type, const void* payload, uint32_t payload_len) {
-    PacketHeader header;
-    header.type = type;
-    header.length = payload_len;
-
-    std::vector<char> send_buf(sizeof(header) + payload_len);
-    std::memcpy(send_buf.data(), &header, sizeof(header));
-    if (payload_len > 0 && payload != nullptr) {
-        std::memcpy(send_buf.data() + sizeof(header), payload, payload_len);
-    }
-
+// helper to send all bytes since tcp might send in chunks
+static bool send_all(SOCKET sock, const char* buffer, int size) {
     int bytes_sent = 0;
-    int total_bytes = static_cast<int>(send_buf.size());
-    while (bytes_sent < total_bytes) {
-        int n = send(sock, send_buf.data() + bytes_sent, total_bytes - bytes_sent, 0);
-        if (n <= 0) {
-            return false;
-        }
+    while (bytes_sent < size) {
+        int n = send(sock, buffer + bytes_sent, size - bytes_sent, 0);
+        if (n <= 0) return false;
         bytes_sent += n;
     }
     return true;
 }
 
-// Broadcast game state to all active clients
+// send packet directly, no vector buffers or allocations
+bool send_packet(SOCKET sock, uint16_t type, const void* payload, uint32_t payload_len) {
+    PacketHeader header;
+    header.type = type;
+    header.length = payload_len;
+
+    // send header
+    if (!send_all(sock, reinterpret_cast<const char*>(&header), sizeof(header))) {
+        return false;
+    }
+    // send payload
+    if (payload_len > 0 && payload != nullptr) {
+        if (!send_all(sock, reinterpret_cast<const char*>(payload), payload_len)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+// broadcast packet to all playing clients
 void broadcast_packet(uint16_t type, const void* payload, uint32_t payload_len) {
     for (auto& client : clients) {
         if (client.is_active) {
@@ -65,7 +71,7 @@ void broadcast_packet(uint16_t type, const void* payload, uint32_t payload_len) 
     }
 }
 
-// Read exact amount of bytes from socket
+// read exactly size bytes from socket
 bool recv_all(SOCKET sock, char* buffer, int size) {
     int bytes_read = 0;
     while (bytes_read < size) {
@@ -78,13 +84,13 @@ bool recv_all(SOCKET sock, char* buffer, int size) {
     return true;
 }
 
-// Initialize player state
+// set up new player properties
 void init_player_state(Player& p, uint32_t id, const char* name, uint32_t color_idx) {
     p.id = id;
     std::strncpy(p.name, name, sizeof(p.name) - 1);
     p.name[sizeof(p.name) - 1] = '\0';
     
-    // Spawn positions around the center
+    // starting positions around the map center
     float angle = (2.0f * 3.14159f / MAX_PLAYERS) * color_idx;
     p.pos.x = CENTER_X + (BASE_ROTATION_RADIUS - 50.0f) * std::cos(angle);
     p.pos.y = CENTER_Y + (BASE_ROTATION_RADIUS - 50.0f) * std::sin(angle);
@@ -107,9 +113,9 @@ void init_player_state(Player& p, uint32_t id, const char* name, uint32_t color_
     p.color_index = color_idx;
 }
 
-// Helper to spawn gold on the map
+// spawn gold nugget in random place
 void spawn_gold() {
-    // Count active gold items
+    // check how much gold is already on map
     uint32_t active_count = 0;
     for (uint32_t i = 0; i < MAX_GOLD_ITEMS; ++i) {
         if (game_state.gold_items[i].is_active) {
@@ -118,50 +124,50 @@ void spawn_gold() {
     }
     
     if (active_count >= MAX_GOLD_ON_MAP) {
-        return; // Don't exceed limits
+        return; // do not spawn if map is full of gold
     }
     
-    // Find an empty slot
+    // look for free slot to put new gold
     for (uint32_t i = 0; i < MAX_GOLD_ITEMS; ++i) {
         if (!game_state.gold_items[i].is_active) {
             game_state.gold_items[i].id = i;
             
-            // Random radius and angle from center shaft
+            // random angle and distance from middle
             float angle = static_cast<float>(std::rand()) / RAND_MAX * 2.0f * 3.14159f;
-            // Spawn distance between MINE_RADIUS + 20 and 320
+            // keep it between mine edge and outer circle
             float dist = MINE_RADIUS + 20.0f + (static_cast<float>(std::rand()) / RAND_MAX * 250.0f);
             
             game_state.gold_items[i].pos.x = CENTER_X + dist * std::cos(angle);
             game_state.gold_items[i].pos.y = CENTER_Y + dist * std::sin(angle);
             
-            // Keep gold within screen boundaries
+            // clamp to map boundaries so gold is not offscreen
             if (game_state.gold_items[i].pos.x < GOLD_RADIUS + 30.0f) game_state.gold_items[i].pos.x = GOLD_RADIUS + 30.0f;
             if (game_state.gold_items[i].pos.x > MAP_WIDTH - GOLD_RADIUS - 30.0f) game_state.gold_items[i].pos.x = MAP_WIDTH - GOLD_RADIUS - 30.0f;
             if (game_state.gold_items[i].pos.y < GOLD_RADIUS + 30.0f) game_state.gold_items[i].pos.y = GOLD_RADIUS + 30.0f;
             if (game_state.gold_items[i].pos.y > MAP_HEIGHT - GOLD_RADIUS - 30.0f) game_state.gold_items[i].pos.y = MAP_HEIGHT - GOLD_RADIUS - 30.0f;
             
-            // Random gold value between 5 and 15
+            // gold nugget has random value between 5 and 15
             game_state.gold_items[i].value = 5 + (std::rand() % 11);
             game_state.gold_items[i].is_active = true;
             
-            // Alert players of gold spawn
+            // print gold spawn message
             std::cout << "[Server] A new gold nugget was deposited near (" << game_state.gold_items[i].pos.x << ", " << game_state.gold_items[i].pos.y << ")" << std::endl;
             break;
         }
     }
 }
 
-// Reset variables for a new round
+// start a fresh round of gold fever
 void reset_round() {
     game_state.round_timer = static_cast<float>(ROUND_DURATION);
     game_state.winner_id = 0;
     
-    // Clear gold items
+    // clear existing gold items
     for (uint32_t i = 0; i < MAX_GOLD_ITEMS; ++i) {
         game_state.gold_items[i].is_active = false;
     }
     
-    // Reset players position and current gold (keep upgrades and rounds won)
+    // reset positions and carried gold, but keep upgrades
     float divisor = game_state.player_count > 0 ? static_cast<float>(game_state.player_count) : 4.0f;
     for (uint32_t i = 0; i < game_state.player_count; ++i) {
         Player& p = game_state.players[i];
@@ -175,7 +181,7 @@ void reset_round() {
         p.dir.y = 0;
     }
     
-    // Initialize bases around the center
+    // set up base positions based on active players
     for (uint32_t i = 0; i < game_state.player_count; ++i) {
         Base& b = game_state.bases[i];
         b.owner_id = game_state.players[i].id;
@@ -185,22 +191,22 @@ void reset_round() {
         b.is_active = game_state.players[i].is_active;
     }
     
-    // Spawn initial gold bars
+    // spawn a couple of initial gold nuggets
     spawn_gold();
 }
 
-// Client connection thread handler
+// main thread loop for each connected client
 void client_handler(SOCKET client_socket, uint32_t player_id) {
     char read_buffer[4096];
     
     while (is_server_running) {
-        // Read packet header
+        // read message type and length
         PacketHeader header;
         if (!recv_all(client_socket, reinterpret_cast<char*>(&header), sizeof(header))) {
-            break; // Disconnect
+            break; // connection dropped
         }
         
-        // Read payload
+        // read message payload
         if (header.length > sizeof(read_buffer)) {
             std::cerr << "[Server] Packet payload size too big: " << header.length << std::endl;
             break;
@@ -212,10 +218,10 @@ void client_handler(SOCKET client_socket, uint32_t player_id) {
             }
         }
         
-        // Lock state to apply client commands
+        // lock thread to safely edit shared game state
         std::lock_guard<std::mutex> lock(state_mutex);
         
-        // Find player index
+        // locate this player in our array
         int player_idx = -1;
         for (uint32_t i = 0; i < game_state.player_count; ++i) {
             if (game_state.players[i].id == player_id) {
@@ -225,18 +231,18 @@ void client_handler(SOCKET client_socket, uint32_t player_id) {
         }
         
         if (player_idx == -1) {
-            continue; // Player state not found
+            continue; // couldn't find player, skip
         }
         
         Player& player = game_state.players[player_idx];
         
         if (!player.is_active) {
-            continue; // Ignore packets from inactive players
+            continue; // skip if player has disconnected
         }
         
         switch (header.type) {
             case MSG_CLIENT_READY: {
-                if (game_state.state == 0) { // Only in Lobby
+                if (game_state.state == 0) { // players can only toggle ready in lobby
                     MsgClientReady* msg = reinterpret_cast<MsgClientReady*>(read_buffer);
                     player.is_ready = msg->is_ready;
                     std::cout << "[Server] Player " << player.name << " is " << (player.is_ready ? "READY" : "NOT READY") << std::endl;
@@ -258,7 +264,7 @@ void client_handler(SOCKET client_socket, uint32_t player_id) {
                 MsgClientBuy* msg = reinterpret_cast<MsgClientBuy*>(read_buffer);
                 uint32_t item = msg->item_index;
                 
-                // Purchases cost gold from player's base score
+                // calculate shop purchase costs
                 uint32_t cost = 999;
                 if (item == 0) cost = COST_SPEED_BOOST;
                 else if (item == 1) cost = COST_GOLD_MULTIPLIER;
@@ -284,7 +290,7 @@ void client_handler(SOCKET client_socket, uint32_t player_id) {
         }
     }
     
-    // Handle disconnect
+    // handle connection loss cleanup
     std::lock_guard<std::mutex> lock(state_mutex);
     std::cout << "[Server] Player with socket " << client_socket << " disconnected." << std::endl;
     closesocket(client_socket);
@@ -301,7 +307,7 @@ void client_handler(SOCKET client_socket, uint32_t player_id) {
             game_state.players[i].dir.x = 0;
             game_state.players[i].dir.y = 0;
             
-            // Mark their base inactive
+            // disable base for disconnected player
             for (uint32_t j = 0; j < game_state.player_count; ++j) {
                 if (game_state.bases[j].owner_id == player_id) {
                     game_state.bases[j].is_active = false;
@@ -314,13 +320,13 @@ void client_handler(SOCKET client_socket, uint32_t player_id) {
     }
 }
 
-// Tick loop (physics, timer updates, gold spawning, base rotation, collision checks)
+// server simulation tick loop at 30hz
 void game_tick_loop() {
-    const float dt = 0.033f; // 30Hz tick rate
+    const float dt = 0.033f; // 30 ticks per second
     auto tick_duration = std::chrono::milliseconds(33);
     
     float gold_spawn_timer = 0.0f;
-    float state_timer = 0.0f; // Multi-purpose timer for transition screens
+    float state_timer = 0.0f; // timer for round/game over screen delays
     
     while (is_server_running) {
         auto start_time = std::chrono::steady_clock::now();
@@ -328,9 +334,9 @@ void game_tick_loop() {
         {
             std::lock_guard<std::mutex> lock(state_mutex);
             
-            // Game State Machine
-            if (game_state.state == 0) { // Lobby
-                // Check if everyone connected is ready (requires at least 1 player for testing/debugging)
+            // state machine to handle lobby, playing, round over, game over
+            if (game_state.state == 0) { // state: lobby
+                // count how many connected guys are ready
                 bool is_all_ready = (game_state.player_count > 0);
                 for (uint32_t i = 0; i < game_state.player_count; ++i) {
                     if (game_state.players[i].is_active && !game_state.players[i].is_ready) {
@@ -339,14 +345,14 @@ void game_tick_loop() {
                 }
                 
                 if (is_all_ready) {
-                    game_state.state = 1; // Start playing
+                    game_state.state = 1; // all ready, move to playing state
                     game_state.round_number = 1;
                     reset_round();
                     
                     std::cout << "[Server] Round 1 begins!" << std::endl;
                 }
                 
-                // Allow simple movement in lobby
+                // let players move around in lobby for fun
                 for (uint32_t i = 0; i < game_state.player_count; ++i) {
                     Player& p = game_state.players[i];
                     if (!p.is_active) continue;
@@ -354,25 +360,25 @@ void game_tick_loop() {
                     p.pos.x += p.dir.x * PLAYER_BASE_SPEED * dt;
                     p.pos.y += p.dir.y * PLAYER_BASE_SPEED * dt;
                     
-                    // Clamp to map boundaries
+                    // keep player inside screen
                     if (p.pos.x < PLAYER_RADIUS) p.pos.x = PLAYER_RADIUS;
                     if (p.pos.x > MAP_WIDTH - PLAYER_RADIUS) p.pos.x = MAP_WIDTH - PLAYER_RADIUS;
                     if (p.pos.y < PLAYER_RADIUS) p.pos.y = PLAYER_RADIUS;
                     if (p.pos.y > MAP_HEIGHT - PLAYER_RADIUS) p.pos.y = MAP_HEIGHT - PLAYER_RADIUS;
                 }
                 
-            } else if (game_state.state == 1) { // Playing
-                // Decrement timers
+            } else if (game_state.state == 1) { // state: round gameplay
+                // count down round duration
                 game_state.round_timer -= dt;
                 
-                // Spawning gold nugget periodically
+                // spawn a gold item when timer ticks
                 gold_spawn_timer += dt;
                 if (gold_spawn_timer >= static_cast<float>(GOLD_SPAWN_INTERVAL)) {
                     gold_spawn_timer = 0.0f;
                     spawn_gold();
                 }
                 
-                // Rotate bases
+                // rotate player bases around the center circle
                 for (uint32_t i = 0; i < game_state.player_count; ++i) {
                     Base& b = game_state.bases[i];
                     if (!b.is_active) continue;
@@ -386,12 +392,12 @@ void game_tick_loop() {
                     b.pos.y = CENTER_Y + BASE_ROTATION_RADIUS * std::sin(b.angle);
                 }
                 
-                // Update player positions, timers, base interaction
+                // run player physics, timers, interactions
                 for (uint32_t i = 0; i < game_state.player_count; ++i) {
                     Player& p = game_state.players[i];
                     if (!p.is_active) continue;
  
-                    // Calculate speed
+                    // figure out how fast player should move
                     float current_speed = p.is_speed_upgraded ? PLAYER_UPGRADED_SPEED : PLAYER_BASE_SPEED;
                     if (p.slow_timer > 0) {
                         current_speed *= BASE_DEFENSE_SLOW_FACTOR;
@@ -405,24 +411,24 @@ void game_tick_loop() {
                         p.pos.y += p.dir.y * current_speed * dt;
                     }
  
-                    // Boundaries clamp
+                    // keep player on screen
                     if (p.pos.x < PLAYER_RADIUS) p.pos.x = PLAYER_RADIUS;
                     if (p.pos.x > MAP_WIDTH - PLAYER_RADIUS) p.pos.x = MAP_WIDTH - PLAYER_RADIUS;
                     if (p.pos.y < PLAYER_RADIUS) p.pos.y = PLAYER_RADIUS;
                     if (p.pos.y > MAP_HEIGHT - PLAYER_RADIUS) p.pos.y = MAP_HEIGHT - PLAYER_RADIUS;
                     
-                    // Check interaction with the central mine (Gold Feeder)
+                    // check if player hits central gold mine
                     float dist_to_center = std::sqrt((p.pos.x - CENTER_X)*(p.pos.x - CENTER_X) + 
                                                      (p.pos.y - CENTER_Y)*(p.pos.y - CENTER_Y));
                     if (dist_to_center < MINE_RADIUS + PLAYER_RADIUS) {
-                        // Push player back slightly so they can't walk over the shaft structure
+                        // don't let players walk inside the mine structure
                         float push_x = (p.pos.x - CENTER_X) / dist_to_center;
                         float push_y = (p.pos.y - CENTER_Y) / dist_to_center;
                         p.pos.x = CENTER_X + (MINE_RADIUS + PLAYER_RADIUS) * push_x;
                         p.pos.y = CENTER_Y + (MINE_RADIUS + PLAYER_RADIUS) * push_y;
                     }
                     
-                    // Check gold pickups on the map
+                    // pick up gold nuggets if close enough
                     for (uint32_t j = 0; j < MAX_GOLD_ITEMS; ++j) {
                         GoldItem& gold = game_state.gold_items[j];
                         if (!gold.is_active) continue;
@@ -432,10 +438,10 @@ void game_tick_loop() {
                         float dist = std::sqrt(dx*dx + dy*dy);
                         
                         if (dist < PLAYER_RADIUS + GOLD_RADIUS) {
-                            // First request processed takes the gold (critical section resolved by server authority)
+                            // server decides who gets the gold first
                             gold.is_active = false;
                             
-                            // Multiplier check
+                            // check if player has gold multiplier upgrade
                             uint32_t added_gold = gold.value;
                             if (p.is_gold_multiplier_active) {
                                 added_gold = static_cast<uint32_t>(added_gold * 1.50f);
@@ -446,7 +452,7 @@ void game_tick_loop() {
                         }
                     }
                     
-                    // Check interaction with bases
+                    // check if player deposits gold in their own base
                     for (uint32_t j = 0; j < game_state.player_count; ++j) {
                         Base& b = game_state.bases[j];
                         if (!b.is_active) continue;
@@ -457,7 +463,7 @@ void game_tick_loop() {
                         
                         if (dist < PLAYER_RADIUS + BASE_RADIUS) {
                             if (b.owner_id == p.id) {
-                                // Standing on own base -> Deposit carried gold
+                                // deposit carried gold to base score
                                 if (p.gold_carried > 0) {
                                     p.gold_in_base += p.gold_carried;
                                     
@@ -470,7 +476,7 @@ void game_tick_loop() {
                     }
                 }
                 
-                // Resolve player-to-player collisions
+                // push players apart if they overlap
                 for (uint32_t i = 0; i < game_state.player_count; ++i) {
                     Player& p1 = game_state.players[i];
                     if (!p1.is_active) continue;
@@ -485,7 +491,7 @@ void game_tick_loop() {
                         
                         if (dist < 2.0f * PLAYER_RADIUS && dist > 0.001f) {
                             float overlap = (2.0f * PLAYER_RADIUS) - dist;
-                            // Push back along collision vector
+                            // push players back along collision vector
                             float push_x = dx / dist;
                             float push_y = dy / dist;
                             
@@ -497,9 +503,9 @@ void game_tick_loop() {
                     }
                 }
                 
-                // Round end transition check
+                // check if round timer ran out
                 if (game_state.round_timer <= 0) {
-                    // Evaluate round winner
+                    // figure out who won this round
                     uint32_t max_gold = 0;
                     int winner_idx = -1;
                     bool is_tie = false;
@@ -508,7 +514,7 @@ void game_tick_loop() {
                         Player& p = game_state.players[i];
                         if (!p.is_active) continue;
                         
-                        p.total_gold_all_rounds += p.gold_in_base; // accumulate for final tiebreaker
+                        p.total_gold_all_rounds += p.gold_in_base; // save score for tiebreakers
                         
                         if (p.gold_in_base > max_gold) {
                             max_gold = p.gold_in_base;
@@ -529,12 +535,12 @@ void game_tick_loop() {
                         std::cout << "[Server] Round " << game_state.round_number << " ends in a tie!" << std::endl;
                     }
                     
-                    // Check if game is completely over
+                    // if 3 rounds passed, game is over
                     if (game_state.round_number >= TOTAL_ROUNDS) {
                         game_state.state = 3; // Game Over
-                        state_timer = 8.0f;    // Show final game over screen for 8s
+                        state_timer = 8.0f;    // stay on game over screen for 8s
                         
-                        // Find match winner
+                        // check who won most rounds
                         uint32_t max_rounds = 0;
                         uint32_t tiebreaker_gold = 0;
                         int match_winner_idx = -1;
@@ -550,7 +556,7 @@ void game_tick_loop() {
                                 match_winner_idx = i;
                                 is_match_tie = false;
                             } else if (p.rounds_won == max_rounds) {
-                                // Resolve tie using total gold collected across all rounds
+                                // total gold collected is the tiebreaker
                                 if (p.total_gold_all_rounds > tiebreaker_gold) {
                                     tiebreaker_gold = p.total_gold_all_rounds;
                                     match_winner_idx = i;
@@ -567,21 +573,21 @@ void game_tick_loop() {
                             game_state.winner_id = 0; // Joint 1st place / Tie
                         }
                     } else {
-                        game_state.state = 2; // Round End transition
-                        state_timer = 5.0f;    // Show round scores screen for 5s
+                        game_state.state = 2; // transition back to playing next round
+                        state_timer = 5.0f;    // delay on round scores screen
                     }
                 }
                 
-            } else if (game_state.state == 2) { // Round End screen
+            } else if (game_state.state == 2) { // state: round ended screen
                 state_timer -= dt;
                 if (state_timer <= 0) {
                     game_state.round_number++;
-                    game_state.state = 1; // Resume playing next round
+                    game_state.state = 1; // transition back to playing next round
                     reset_round();
                     
                     std::cout << "[Server] Round " << game_state.round_number << " begins!" << std::endl;
                 }
-            } else if (game_state.state == 3) { // Game Over screen
+            } else if (game_state.state == 3) { // state: game over screen
                 state_timer -= dt;
                 if (state_timer <= 0) {
                     // Reset everything to Lobby
@@ -594,11 +600,11 @@ void game_tick_loop() {
                 }
             }
             
-            // Broadcast the entire game state to all clients
+            // sync everyone with latest state
             broadcast_packet(MSG_SERVER_STATE, &game_state, sizeof(game_state));
         }
         
-        // Sleep to regulate tick rate
+        // sleep to cap tick rate at 30hz
         auto elapsed = std::chrono::steady_clock::now() - start_time;
         if (elapsed < tick_duration) {
             std::this_thread::sleep_for(tick_duration - elapsed);
@@ -621,7 +627,7 @@ int main() {
         return 1;
     }
     
-    // Allow address reuse
+    // avoid port in use errors
     int opt = 1;
     setsockopt(listenfd, SOL_SOCKET, SO_REUSEADDR, reinterpret_cast<const char*>(&opt), sizeof(opt));
 
@@ -645,13 +651,13 @@ int main() {
 
     std::cout << "[Server] Gold Fever Server running on port 5000..." << std::endl;
     
-    // Initialize Game State
-    game_state.state = 0; // Lobby
+    // set up initial server variables
+    game_state.state = 0; // state: lobby
     game_state.round_number = 0;
     game_state.player_count = 0;
     game_state.gold_count = 0;
     
-    // Start physics/tick thread
+    // start physics simulation thread
     std::thread tick_thread(game_tick_loop);
     tick_thread.detach();
 
@@ -669,7 +675,7 @@ int main() {
 
         std::cout << "[Server] New client connection accepted." << std::endl;
         
-        // Read client join request
+        // read incoming client join payload
         PacketHeader header;
         if (!recv_all(connfd, reinterpret_cast<char*>(&header), sizeof(header))) {
             closesocket(connfd);
@@ -707,12 +713,12 @@ int main() {
         client.name = join_msg->name;
         clients.push_back(client);
         
-        // Add to game state players
+        // add new player slot
         Player& new_player = game_state.players[game_state.player_count];
         init_player_state(new_player, player_id, client.name.c_str(), color_idx);
         game_state.player_count++;
         
-        // Send join acknowledgment
+        // send join ok to client
         MsgServerJoinAck ack;
         ack.player_id = player_id;
         send_packet(connfd, MSG_SERVER_JOIN_ACK, &ack, sizeof(ack));
@@ -721,7 +727,7 @@ int main() {
         
         std::cout << "[Server] " << client.name << " joined the lobby!" << std::endl;
         
-        // Spawn connection handler thread
+        // spawn a thread for this player's socket
         std::thread client_thread(client_handler, connfd, player_id);
         client_thread.detach();
     }
