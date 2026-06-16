@@ -216,9 +216,9 @@ void client_handler(SOCKET client_socket, uint32_t player_id) {
                 break;
             }
         }
-        
+
         lock_guard<mutex> lock(state_mutex);
-        
+
         int player_idx = -1;
         for (int i = 0; i < (int)game_state.player_count; ++i) {
             if (game_state.players[i].id == player_id) {
@@ -282,6 +282,7 @@ void client_handler(SOCKET client_socket, uint32_t player_id) {
         }
     }
     
+    // handle connection loss cleanup
     lock_guard<mutex> lock(state_mutex);
     cout << "[Server] Player with socket " << client_socket << " disconnected." << endl;
     closesocket(client_socket);
@@ -311,13 +312,267 @@ void client_handler(SOCKET client_socket, uint32_t player_id) {
     }
 }
 
-// server simulation tick loop
+// update lobby state loop
+void update_lobby(float dt) {
+    // count how many connected players are ready
+    bool is_all_ready = (game_state.player_count > 0);
+    for (int i = 0; i < (int)game_state.player_count; ++i) {
+        if (game_state.players[i].is_active && !game_state.players[i].is_ready) {
+            is_all_ready = false;
+        }
+    }
+    
+    if (is_all_ready) {
+        game_state.state = 1; // all ready, move to playing state
+        game_state.round_number = 1;
+        reset_round();
+        
+        cout << "[Server] Round 1 begins!" << endl;
+    }
+    
+    // let players move around in lobby for fun
+    for (int i = 0; i < (int)game_state.player_count; ++i) {
+        Player& p = game_state.players[i];
+        if (!p.is_active) continue;
+        
+        p.pos.x += p.dir.x * PLAYER_BASE_SPEED * dt;
+        p.pos.y += p.dir.y * PLAYER_BASE_SPEED * dt;
+        
+        // keep player inside screen
+        if (p.pos.x < PLAYER_RADIUS) p.pos.x = PLAYER_RADIUS;
+        if (p.pos.x > MAP_WIDTH - PLAYER_RADIUS) p.pos.x = MAP_WIDTH - PLAYER_RADIUS;
+        if (p.pos.y < PLAYER_RADIUS) p.pos.y = PLAYER_RADIUS;
+        if (p.pos.y > MAP_HEIGHT - PLAYER_RADIUS) p.pos.y = MAP_HEIGHT - PLAYER_RADIUS;
+    }
+}
+
+// prevent player from walking into miner
+void check_mine_collisions(Player& p) {
+    float dist_to_center = sqrt((p.pos.x - CENTER_X)*(p.pos.x - CENTER_X) + 
+                                (p.pos.y - CENTER_Y)*(p.pos.y - CENTER_Y));
+    if (dist_to_center < MINE_RADIUS + PLAYER_RADIUS) {
+        float push_x = (p.pos.x - CENTER_X) / dist_to_center;
+        float push_y = (p.pos.y - CENTER_Y) / dist_to_center;
+        p.pos.x = CENTER_X + (MINE_RADIUS + PLAYER_RADIUS) * push_x;
+        p.pos.y = CENTER_Y + (MINE_RADIUS + PLAYER_RADIUS) * push_y;
+    }
+}
+
+// check if player picked up gold
+void check_gold_pickups(Player& p) {
+    for (int j = 0; j < MAX_GOLD_ITEMS; ++j) {
+        GoldItem& gold = game_state.gold_items[j];
+        if (!gold.is_active) continue;
+        
+        float dx = p.pos.x - gold.pos.x;
+        float dy = p.pos.y - gold.pos.y;
+        float dist = sqrt(dx*dx + dy*dy);
+        
+        if (dist < PLAYER_RADIUS + GOLD_RADIUS) {
+            gold.is_active = false;
+            uint32_t added_gold = gold.value;
+            if (p.is_gold_multiplier_active) {
+                added_gold = (uint32_t)(added_gold * 1.50f);
+            }
+            p.gold_carried += added_gold;
+            cout << "[Server] " << p.name << " picked up " << added_gold << " gold!" << endl;
+        }
+    }
+}
+
+// deposit player gold inside their base
+void check_base_deposits(Player& p) {
+    for (int j = 0; j < (int)game_state.player_count; ++j) {
+        Base& b = game_state.bases[j];
+        if (!b.is_active) continue;
+        
+        float dx = p.pos.x - b.pos.x;
+        float dy = p.pos.y - b.pos.y;
+        float dist = sqrt(dx*dx + dy*dy);
+        
+        if (dist < PLAYER_RADIUS + BASE_RADIUS) {
+            if (b.owner_id == p.id) {
+                if (p.gold_carried > 0) {
+                    p.gold_in_base += p.gold_carried;
+                    cout << "[Server] " << p.name << " deposited " << p.gold_carried << " gold in base!" << endl;
+                    p.gold_carried = 0;
+                }
+            }
+        }
+    }
+}
+
+// prevent players from overlapping
+void resolve_player_collisions() {
+    for (int i = 0; i < (int)game_state.player_count; ++i) {
+        Player& p1 = game_state.players[i];
+        if (!p1.is_active) continue;
+        
+        for (int j = i + 1; j < (int)game_state.player_count; ++j) {
+            Player& p2 = game_state.players[j];
+            if (!p2.is_active) continue;
+            
+            float dx = p2.pos.x - p1.pos.x;
+            float dy = p2.pos.y - p1.pos.y;
+            float dist = sqrt(dx*dx + dy*dy);
+            
+            if (dist < 2.0f * PLAYER_RADIUS && dist > 0.001f) {
+                float overlap = (2.0f * PLAYER_RADIUS) - dist;
+                float push_x = dx / dist;
+                float push_y = dy / dist;
+                
+                p1.pos.x -= 0.5f * overlap * push_x;
+                p1.pos.y -= 0.5f * overlap * push_y;
+                p2.pos.x += 0.5f * overlap * push_x;
+                p2.pos.y += 0.5f * overlap * push_y;
+            }
+        }
+    }
+}
+
+void evaluate_round_end(float& state_timer) {
+    if (game_state.round_timer <= 0) {
+        uint32_t max_gold = 0;
+        int winner_idx = -1;
+        bool is_tie = false;
+        
+        for (int i = 0; i < (int)game_state.player_count; ++i) {
+            Player& p = game_state.players[i];
+            if (!p.is_active) continue;
+            
+            p.total_gold_all_rounds += p.gold_in_base;
+            
+            if (p.gold_in_base > max_gold) {
+                max_gold = p.gold_in_base;
+                winner_idx = i;
+                is_tie = false;
+            } else if (p.gold_in_base == max_gold && max_gold > 0) {
+                is_tie = true;
+            }
+        }
+        
+        if (winner_idx != -1 && !is_tie) {
+            game_state.winner_id = game_state.players[winner_idx].id;
+            game_state.players[winner_idx].rounds_won++;
+            cout << "[Server] " << game_state.players[winner_idx].name << " wins Round " << game_state.round_number << " with " << max_gold << " gold!" << endl;
+        } else {
+            game_state.winner_id = 0;
+            cout << "[Server] Round " << game_state.round_number << " ends in a tie!" << endl;
+        }
+        
+        if (game_state.round_number >= TOTAL_ROUNDS) {
+            game_state.state = 3;
+            state_timer = 8.0f;
+            
+            uint32_t max_rounds = 0;
+            uint32_t tiebreaker_gold = 0;
+            int match_winner_idx = -1;
+            bool is_match_tie = false;
+            
+            for (int i = 0; i < (int)game_state.player_count; ++i) {
+                Player& p = game_state.players[i];
+                if (!p.is_active) continue;
+                
+                if (p.rounds_won > max_rounds) {
+                    max_rounds = p.rounds_won;
+                    tiebreaker_gold = p.total_gold_all_rounds;
+                    match_winner_idx = i;
+                    is_match_tie = false;
+                } else if (p.rounds_won == max_rounds) {
+                    if (p.total_gold_all_rounds > tiebreaker_gold) {
+                        tiebreaker_gold = p.total_gold_all_rounds;
+                        match_winner_idx = i;
+                        is_match_tie = false;
+                    } else if (p.total_gold_all_rounds == tiebreaker_gold) {
+                        is_match_tie = true;
+                    }
+                }
+            }
+            
+            if (match_winner_idx != -1 && !is_match_tie) {
+                game_state.winner_id = game_state.players[match_winner_idx].id;
+            } else {
+                game_state.winner_id = 0;
+            }
+        } else {
+            game_state.state = 2;
+            state_timer = 5.0f;
+        }
+    }
+}
+
+void update_playing(float dt, float& state_timer, float& gold_spawn_timer) {
+    game_state.round_timer -= dt;
+    
+    gold_spawn_timer += dt;
+    if (gold_spawn_timer >= (float)GOLD_SPAWN_INTERVAL) {
+        gold_spawn_timer = 0.0f;
+        spawn_gold();
+    }
+    
+    for (int i = 0; i < (int)game_state.player_count; ++i) {
+        Base& b = game_state.bases[i];
+        if (!b.is_active) continue;
+        
+        b.angle += BASE_ROTATION_SPEED * dt;
+        if (b.angle > 2.0f * 3.14159f) {
+            b.angle -= 2.0f * 3.14159f;
+        }
+        
+        b.pos.x = CENTER_X + BASE_ROTATION_RADIUS * cos(b.angle);
+        b.pos.y = CENTER_Y + BASE_ROTATION_RADIUS * sin(b.angle);
+    }
+    
+    for (int i = 0; i < (int)game_state.player_count; ++i) {
+        Player& p = game_state.players[i];
+        if (!p.is_active) continue;
+ 
+        float current_speed = p.is_speed_upgraded ? PLAYER_UPGRADED_SPEED : PLAYER_BASE_SPEED;
+        p.pos.x += p.dir.x * current_speed * dt;
+        p.pos.y += p.dir.y * current_speed * dt;
+ 
+        if (p.pos.x < PLAYER_RADIUS) p.pos.x = PLAYER_RADIUS;
+        if (p.pos.x > MAP_WIDTH - PLAYER_RADIUS) p.pos.x = MAP_WIDTH - PLAYER_RADIUS;
+        if (p.pos.y < PLAYER_RADIUS) p.pos.y = PLAYER_RADIUS;
+        if (p.pos.y > MAP_HEIGHT - PLAYER_RADIUS) p.pos.y = MAP_HEIGHT - PLAYER_RADIUS;
+        
+        check_mine_collisions(p);
+        check_gold_pickups(p);
+        check_base_deposits(p);
+    }
+    
+    resolve_player_collisions();
+    evaluate_round_end(state_timer);
+}
+
+void update_round_end_screen(float dt, float& state_timer) {
+    state_timer -= dt;
+    if (state_timer <= 0) {
+        game_state.round_number++;
+        game_state.state = 1;
+        reset_round();
+        cout << "[Server] Round " << game_state.round_number << " begins!" << endl;
+    }
+}
+
+void update_game_over_screen(float dt, float& state_timer) {
+    state_timer -= dt;
+    if (state_timer <= 0) {
+        game_state.state = 0;
+        game_state.round_number = 0;
+        game_state.player_count = 0;
+        game_state.gold_count = 0;
+        clients.clear();
+        cout << "[Server] Game reset to Lobby." << endl;
+    }
+}
+
 void game_tick_loop() {
     const float dt = 0.033f; // 30 ticks per second
     auto tick_duration = chrono::milliseconds(33);
     
     float gold_spawn_timer = 0.0f;
-    float state_timer = 0.0f;
+    float state_timer = 0.0f; // timer for round
     
     while (is_server_running) {
         auto start_time = chrono::steady_clock::now();
@@ -326,263 +581,20 @@ void game_tick_loop() {
             lock_guard<mutex> lock(state_mutex);
             
             // state machine to handle lobby, playing, round over, game over
-            if (game_state.state == 0) { // state: lobby
-                // count how many connected players are ready
-                bool is_all_ready = (game_state.player_count > 0);
-                for (int i = 0; i < (int)game_state.player_count; ++i) {
-                    if (game_state.players[i].is_active && !game_state.players[i].is_ready) {
-                        is_all_ready = false;
-                    }
-                }
-                
-                if (is_all_ready) {
-                    game_state.state = 1; // all ready, move to playing state
-                    game_state.round_number = 1;
-                    reset_round();
-                    
-                    cout << "[Server] Round 1 begins!" << endl;
-                }
-                
-                // let players move around in lobby
-                for (int i = 0; i < (int)game_state.player_count; ++i) {
-                    Player& p = game_state.players[i];
-                    if (!p.is_active) continue;
-                    
-                    p.pos.x += p.dir.x * PLAYER_BASE_SPEED * dt;
-                    p.pos.y += p.dir.y * PLAYER_BASE_SPEED * dt;
-                    
-                    // borders
-                    if (p.pos.x < PLAYER_RADIUS) p.pos.x = PLAYER_RADIUS;
-                    if (p.pos.x > MAP_WIDTH - PLAYER_RADIUS) p.pos.x = MAP_WIDTH - PLAYER_RADIUS;
-                    if (p.pos.y < PLAYER_RADIUS) p.pos.y = PLAYER_RADIUS;
-                    if (p.pos.y > MAP_HEIGHT - PLAYER_RADIUS) p.pos.y = MAP_HEIGHT - PLAYER_RADIUS;
-                }
-                
-            } else if (game_state.state == 1) { // state: round gameplay
-                // count down round duration
-                game_state.round_timer -= dt;
-                
-                // spawn a gold item when timer ticks
-                gold_spawn_timer += dt;
-                if (gold_spawn_timer >= (float)GOLD_SPAWN_INTERVAL) {
-                    gold_spawn_timer = 0.0f;
-                    spawn_gold();
-                }
-                
-                // rotate player bases around the center circle
-                for (int i = 0; i < (int)game_state.player_count; ++i) {
-                    Base& b = game_state.bases[i];
-                    if (!b.is_active) continue;
-                    
-                    b.angle += BASE_ROTATION_SPEED * dt;
-                    if (b.angle > 2.0f * 3.14159f) {
-                        b.angle -= 2.0f * 3.14159f;
-                    }
-                    
-                    b.pos.x = CENTER_X + BASE_ROTATION_RADIUS * cos(b.angle);
-                    b.pos.y = CENTER_Y + BASE_ROTATION_RADIUS * sin(b.angle);
-                }
-                
-                // run player physics, timers, interactions
-                for (int i = 0; i < (int)game_state.player_count; ++i) {
-                    Player& p = game_state.players[i];
-                    if (!p.is_active) continue;
- 
-                    // figure out how fast player should move
-                    float current_speed = p.is_speed_upgraded ? PLAYER_UPGRADED_SPEED : PLAYER_BASE_SPEED;
- 
-                    p.pos.x += p.dir.x * current_speed * dt;
-                    p.pos.y += p.dir.y * current_speed * dt;
- 
-                    // keep player on screen
-                    if (p.pos.x < PLAYER_RADIUS) p.pos.x = PLAYER_RADIUS;
-                    if (p.pos.x > MAP_WIDTH - PLAYER_RADIUS) p.pos.x = MAP_WIDTH - PLAYER_RADIUS;
-                    if (p.pos.y < PLAYER_RADIUS) p.pos.y = PLAYER_RADIUS;
-                    if (p.pos.y > MAP_HEIGHT - PLAYER_RADIUS) p.pos.y = MAP_HEIGHT - PLAYER_RADIUS;
-                    
-                    // check if player hits central gold mine
-                    float dist_to_center = sqrt((p.pos.x - CENTER_X)*(p.pos.x - CENTER_X) + 
-                                                     (p.pos.y - CENTER_Y)*(p.pos.y - CENTER_Y));
-                    if (dist_to_center < MINE_RADIUS + PLAYER_RADIUS) {
-                        // don't let players walk inside the mine structure
-                        float push_x = (p.pos.x - CENTER_X) / dist_to_center;
-                        float push_y = (p.pos.y - CENTER_Y) / dist_to_center;
-                        p.pos.x = CENTER_X + (MINE_RADIUS + PLAYER_RADIUS) * push_x;
-                        p.pos.y = CENTER_Y + (MINE_RADIUS + PLAYER_RADIUS) * push_y;
-                    }
-                    
-                    // pick up gold nuggets if close enough
-                    for (int j = 0; j < MAX_GOLD_ITEMS; ++j) {
-                        GoldItem& gold = game_state.gold_items[j];
-                        if (!gold.is_active) continue;
-                        
-                        float dx = p.pos.x - gold.pos.x;
-                        float dy = p.pos.y - gold.pos.y;
-                        float dist = sqrt(dx*dx + dy*dy);
-                        
-                        if (dist < PLAYER_RADIUS + GOLD_RADIUS) {
-                            // server decides who gets the gold first
-                            gold.is_active = false;
-                            
-                            // check if player has gold multiplier upgrade
-                            uint32_t added_gold = gold.value;
-                            if (p.is_gold_multiplier_active) {
-                                added_gold = (uint32_t)(added_gold * 1.50f);
-                            }
-                            p.gold_carried += added_gold;
-                            
-                            cout << "[Server] " << p.name << " picked up " << added_gold << " gold!" << endl;
-                        }
-                    }
-                    
-                    // check if player deposits gold in their own base
-                    for (int j = 0; j < (int)game_state.player_count; ++j) {
-                        Base& b = game_state.bases[j];
-                        if (!b.is_active) continue;
-                        
-                        float dx = p.pos.x - b.pos.x;
-                        float dy = p.pos.y - b.pos.y;
-                        float dist = sqrt(dx*dx + dy*dy);
-                        
-                        if (dist < PLAYER_RADIUS + BASE_RADIUS) {
-                            if (b.owner_id == p.id) {
-                                if (p.gold_carried > 0) {
-                                    p.gold_in_base += p.gold_carried;
-                                    
-                                    cout << "[Server] " << p.name << " deposited " << p.gold_carried << " gold in base!" << endl;
-                                    
-                                    p.gold_carried = 0;
-                                }
-                            }
-                        }
-                    }
-                }
-                
-                // push players apart if they overlap
-                for (int i = 0; i < (int)game_state.player_count; ++i) {
-                    Player& p1 = game_state.players[i];
-                    if (!p1.is_active) continue;
-                    
-                    for (int j = i + 1; j < (int)game_state.player_count; ++j) {
-                        Player& p2 = game_state.players[j];
-                        if (!p2.is_active) continue;
-                        
-                        float dx = p2.pos.x - p1.pos.x;
-                        float dy = p2.pos.y - p1.pos.y;
-                        float dist = sqrt(dx*dx + dy*dy);
-                        
-                        if (dist < 2.0f * PLAYER_RADIUS && dist > 0.001f) {
-                            float overlap = (2.0f * PLAYER_RADIUS) - dist;
-                            float push_x = dx / dist;
-                            float push_y = dy / dist;
-                            
-                            p1.pos.x -= 0.5f * overlap * push_x;
-                            p1.pos.y -= 0.5f * overlap * push_y;
-                            p2.pos.x += 0.5f * overlap * push_x;
-                            p2.pos.y += 0.5f * overlap * push_y;
-                        }
-                    }
-                }
-                
-                if (game_state.round_timer <= 0) {
-                    uint32_t max_gold = 0;
-                    int winner_idx = -1;
-                    bool is_tie = false;
-                    
-                    for (int i = 0; i < (int)game_state.player_count; ++i) {
-                        Player& p = game_state.players[i];
-                        if (!p.is_active) continue;
-                        
-                        p.total_gold_all_rounds += p.gold_in_base;
-                        
-                        if (p.gold_in_base > max_gold) {
-                            max_gold = p.gold_in_base;
-                            winner_idx = i;
-                            is_tie = false;
-                        } else if (p.gold_in_base == max_gold && max_gold > 0) {
-                            is_tie = true;
-                        }
-                    }
-                    
-                    if (winner_idx != -1 && !is_tie) {
-                        game_state.winner_id = game_state.players[winner_idx].id;
-                        game_state.players[winner_idx].rounds_won++;
-                        
-                        cout << "[Server] " << game_state.players[winner_idx].name << " wins Round " << game_state.round_number << " with " << max_gold << " gold!" << endl;
-                    } else {
-                        game_state.winner_id = 0;
-                        cout << "[Server] Round " << game_state.round_number << " ends in a tie!" << endl;
-                    }
-                    
-                    // if 3 rounds passed, game is over
-                    if (game_state.round_number >= TOTAL_ROUNDS) {
-                        game_state.state = 3; // game over
-                        state_timer = 8.0f;
-                        
-                        // check who won most rounds
-                        uint32_t max_rounds = 0;
-                        uint32_t tiebreaker_gold = 0;
-                        int match_winner_idx = -1;
-                        bool is_match_tie = false;
-                        
-                        for (int i = 0; i < (int)game_state.player_count; ++i) {
-                            Player& p = game_state.players[i];
-                            if (!p.is_active) continue;
-                            
-                            if (p.rounds_won > max_rounds) {
-                                max_rounds = p.rounds_won;
-                                tiebreaker_gold = p.total_gold_all_rounds;
-                                match_winner_idx = i;
-                                is_match_tie = false;
-                            } else if (p.rounds_won == max_rounds) {
-                                // total gold collected is the tiebreaker
-                                if (p.total_gold_all_rounds > tiebreaker_gold) {
-                                    tiebreaker_gold = p.total_gold_all_rounds;
-                                    match_winner_idx = i;
-                                    is_match_tie = false;
-                                } else if (p.total_gold_all_rounds == tiebreaker_gold) {
-                                    is_match_tie = true;
-                                }
-                            }
-                        }
-                        
-                        if (match_winner_idx != -1 && !is_match_tie) {
-                            game_state.winner_id = game_state.players[match_winner_idx].id;
-                        } else {
-                            game_state.winner_id = 0;
-                        }
-                    } else {
-                        game_state.state = 2; // transition back to playing next round
-                        state_timer = 5.0f;    // delay on finished round screen
-                    }
-                }
-                
-            } else if (game_state.state == 2) { // state: round ended screen
-                state_timer -= dt;
-                if (state_timer <= 0) {
-                    game_state.round_number++;
-                    game_state.state = 1; // transition back to playing next round
-                    reset_round();
-                    
-                    cout << "[Server] Round " << game_state.round_number << " begins!" << endl;
-                }
-            } else if (game_state.state == 3) { // state: game over screen
-                state_timer -= dt;
-                if (state_timer <= 0) {
-                    // Reset everything to Lobby
-                    game_state.state = 0;
-                    game_state.round_number = 0;
-                    game_state.player_count = 0;
-                    game_state.gold_count = 0;
-                    clients.clear();
-                    cout << "[Server] Game reset to Lobby." << endl;
-                }
+            if (game_state.state == 0) {
+                update_lobby(dt);
+            } else if (game_state.state == 1) {
+                update_playing(dt, state_timer, gold_spawn_timer);
+            } else if (game_state.state == 2) {
+                update_round_end_screen(dt, state_timer);
+            } else if (game_state.state == 3) {
+                update_game_over_screen(dt, state_timer);
             }
             
             // sync everyone with latest state
             broadcast_packet(MSG_SERVER_STATE, &game_state, sizeof(game_state));
         }
-        
+
         auto elapsed = chrono::steady_clock::now() - start_time;
         if (elapsed < tick_duration) {
             this_thread::sleep_for(tick_duration - elapsed);
