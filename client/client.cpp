@@ -10,11 +10,13 @@
 #include <ctime>
 #include <algorithm>
 
+using namespace std;
+
 struct Notification {
-    std::string text;
+    string text;
     float timer;
 };
-static std::vector<Notification> notifications;
+static vector<Notification> notifications;
 
 static char name_input[32] = "kox";
 static char ip_input[32] = "127.0.0.1";
@@ -42,9 +44,9 @@ Color GetPlayerDarkColor(uint32_t index) {
 }
 
 void HandleTextBoxInput(char* buffer, int max_len, int key) {
-    int len = static_cast<int>(std::strlen(buffer));
+    int len = (int)strlen(buffer);
     if (key >= 32 && key <= 125 && len < max_len - 1) {
-        buffer[len] = static_cast<char>(key);
+        buffer[len] = (char)key;
         buffer[len + 1] = '\0';
     }
     if (key == KEY_BACKSPACE && len > 0) {
@@ -53,7 +55,7 @@ void HandleTextBoxInput(char* buffer, int max_len, int key) {
 }
 
 int main() {
-    std::srand(static_cast<unsigned>(std::time(nullptr)));
+    srand((unsigned)time(nullptr));
     InitWindow(1280, 720, "Gold Fever");
     SetTargetFPS(60);
 
@@ -62,7 +64,7 @@ int main() {
         bool is_connected = network_is_connected();
 
         if (is_connected) {
-            std::vector<std::string> new_alerts = network_get_alerts();
+            vector<string> new_alerts = network_get_alerts();
             for (const auto& alert : new_alerts) {
                 Notification notif;
                 notif.text = alert;
@@ -112,7 +114,7 @@ int main() {
 
             Player my_player;
             bool is_found_me = false;
-            for (uint32_t i = 0; i < state_copy.player_count; ++i) {
+            for (int i = 0; i < (int)state_copy.player_count; ++i) {
                 if (state_copy.players[i].id == my_id) {
                     my_player = state_copy.players[i];
                     is_found_me = true;
@@ -136,7 +138,7 @@ int main() {
                 if (IsKeyDown(KEY_A) || IsKeyDown(KEY_LEFT)) dx -= 1.0f;
                 if (IsKeyDown(KEY_D) || IsKeyDown(KEY_RIGHT)) dx += 1.0f;
 
-                float len = std::sqrt(dx * dx + dy * dy);
+                float len = sqrt(dx * dx + dy * dy);
                 if (len > 0.001f) {
                     dx /= len;
                     dy /= len;
@@ -157,7 +159,7 @@ int main() {
         if (!is_connected) {
             DrawText("GOLD FEVER", 490, 130, 48, GOLD);
 
-            DrawText("NAME:", 450, 250, 20, BLACK);
+            DrawText("NICKNAME:", 450, 250, 20, BLACK);
             Rectangle name_rect = Rectangle{ 450, 280, 380, 40 };
             DrawRectangleRec(name_rect, WHITE);
             DrawText(name_input, 465, 290, 22, BLACK);
@@ -166,7 +168,7 @@ int main() {
                 DrawLine(cursor_pos, 285, cursor_pos, 315, BLACK);
             }
 
-            DrawText("SERVER IP:", 450, 360, 20, BLACK);
+            DrawText("SERVER IP ADDRESS:", 450, 360, 20, BLACK);
             Rectangle ip_rect = Rectangle{ 450, 390, 380, 40 };
             DrawRectangleRec(ip_rect, WHITE);
             DrawText(ip_input, 465, 400, 22, BLACK);
@@ -189,7 +191,7 @@ int main() {
                 }
             }
 
-            std::string connection_err = network_get_error();
+            string connection_err = network_get_error();
             if (!connection_err.empty()) {
                 int err_w = MeasureText(connection_err.c_str(), 18);
                 DrawText(connection_err.c_str(), 640 - err_w / 2, 560, 18, RED);
@@ -203,81 +205,81 @@ int main() {
             DrawRectangle(30, 30, (int)MAP_WIDTH - 60, (int)MAP_HEIGHT - 60, Color{ 245, 222, 179, 255 });
 
             // draw player bases
-            for (uint32_t i = 0; i < state.player_count; ++i) {
+            for (int i = 0; i < (int)state.player_count; ++i) {
                 Base& b = state.bases[i];
                 if (!b.is_active) continue;
 
                 Color c = GetPlayerColor(state.players[i].color_index);
 
                 // draw base circle outline
-                DrawCircle(static_cast<int>(b.pos.x), static_cast<int>(b.pos.y), BASE_RADIUS - 6.0f, c);
-                DrawCircle(static_cast<int>(b.pos.x), static_cast<int>(b.pos.y), BASE_RADIUS - 12.0f, Color{ 245, 222, 179, 255 });
+                DrawCircle((int)b.pos.x, (int)b.pos.y, BASE_RADIUS - 6.0f, c);
+                DrawCircle((int)b.pos.x, (int)b.pos.y, BASE_RADIUS - 12.0f, Color{ 245, 222, 179, 255 });
 
                 char label[32];
-                std::sprintf(label, "%s: %d", state.players[i].name, state.players[i].gold_in_base);
+                sprintf(label, "%s: %d", state.players[i].name, state.players[i].gold_in_base);
                 int label_w = MeasureText(label, 14);
-                DrawRectangle(static_cast<int>(b.pos.x - label_w / 2 - 4), static_cast<int>(b.pos.y - BASE_RADIUS - 22), label_w + 8, 18, Color{ 0, 0, 0, 160 });
-                DrawText(label, static_cast<int>(b.pos.x - label_w / 2), static_cast<int>(b.pos.y - BASE_RADIUS - 20), 14, WHITE);
+                DrawRectangle((int)(b.pos.x - label_w / 2 - 4), (int)(b.pos.y - BASE_RADIUS - 22), label_w + 8, 18, Color{ 0, 0, 0, 160 });
+                DrawText(label, (int)(b.pos.x - label_w / 2), (int)(b.pos.y - BASE_RADIUS - 20), 14, WHITE);
             }
 
             // draw central gold mine
-            DrawCircle(static_cast<int>(CENTER_X), static_cast<int>(CENTER_Y), MINE_RADIUS + 5.0f, DARKGRAY);
-            DrawText("MINE", static_cast<int>(CENTER_X - 16), static_cast<int>(CENTER_Y - 8), 14, GOLD);
+            DrawCircle((int)CENTER_X, (int)CENTER_Y, MINE_RADIUS + 5.0f, DARKGRAY);
+            DrawText("MINE", (int)(CENTER_X - 16), (int)(CENTER_Y - 8), 14, GOLD);
 
             // draw gold items on the ground
-            for (uint32_t i = 0; i < MAX_GOLD_ITEMS; ++i) {
+            for (int i = 0; i < MAX_GOLD_ITEMS; ++i) {
                 GoldItem& gold = state.gold_items[i];
                 if (!gold.is_active) continue;
 
                 DrawPoly(Vector2{ gold.pos.x, gold.pos.y }, 4, GOLD_RADIUS, 45.0f, GOLD);
 
                 char val_str[16];
-                std::sprintf(val_str, "%d", gold.value);
-                DrawText(val_str, static_cast<int>(gold.pos.x - MeasureText(val_str, 12) / 2), static_cast<int>(gold.pos.y - 6), 12, BLACK);
+                sprintf(val_str, "%d", gold.value);
+                DrawText(val_str, (int)(gold.pos.x - MeasureText(val_str, 12) / 2), (int)(gold.pos.y - 6), 12, BLACK);
             }
 
             // draw players and details
-            for (uint32_t i = 0; i < state.player_count; ++i) {
+            for (int i = 0; i < (int)state.player_count; ++i) {
                 Player& p = state.players[i];
                 if (!p.is_active) continue;
 
                 Color color = GetPlayerColor(p.color_index);
-                DrawCircle(static_cast<int>(p.pos.x), static_cast<int>(p.pos.y), PLAYER_RADIUS, color);
+                DrawCircle((int)p.pos.x, (int)p.pos.y, PLAYER_RADIUS, color);
 
                 if (p.gold_carried > 0) {
-                    DrawRectangle(static_cast<int>(p.pos.x - 7), static_cast<int>(p.pos.y - PLAYER_RADIUS - 14), 14, 14, GOLD);
+                    DrawRectangle((int)(p.pos.x - 7), (int)(p.pos.y - PLAYER_RADIUS - 14), 14, 14, GOLD);
                     char carry_txt[16];
-                    std::sprintf(carry_txt, "+%d", p.gold_carried);
-                    DrawText(carry_txt, static_cast<int>(p.pos.x - MeasureText(carry_txt, 10) / 2), static_cast<int>(p.pos.y - PLAYER_RADIUS - 12), 10, BLACK);
+                    sprintf(carry_txt, "+%d", p.gold_carried);
+                    DrawText(carry_txt, (int)(p.pos.x - MeasureText(carry_txt, 10) / 2), (int)(p.pos.y - PLAYER_RADIUS - 12), 10, BLACK);
                 }
 
                 char name_tag[64];
-                std::sprintf(name_tag, "%s", p.name);
+                sprintf(name_tag, "%s", p.name);
                 int tag_w = MeasureText(name_tag, 13);
-                DrawRectangle(static_cast<int>(p.pos.x - tag_w / 2 - 4), static_cast<int>(p.pos.y + PLAYER_RADIUS + 4), tag_w + 8, 16, Color{ 0, 0, 0, 160 });
-                DrawText(name_tag, static_cast<int>(p.pos.x - tag_w / 2), static_cast<int>(p.pos.y + PLAYER_RADIUS + 6), 13, WHITE);
+                DrawRectangle((int)(p.pos.x - tag_w / 2 - 4), (int)(p.pos.y + PLAYER_RADIUS + 4), tag_w + 8, 16, Color{ 0, 0, 0, 160 });
+                DrawText(name_tag, (int)(p.pos.x - tag_w / 2), (int)(p.pos.y + PLAYER_RADIUS + 6), 13, WHITE);
             }
 
             // draw top status bar with round info
-            DrawRectangle(0, 0, 1280, 45, Color{ 0, 0, 0, 255 });
+            DrawRectangle(0, 0, 1280, 45, Color{ 0, 0, 0, 180 });
 
             char round_txt[32];
             if (state.state == 0) {
-                std::strcpy(round_txt, "LOBBY");
+                strcpy(round_txt, "LOBBY");
             } else if (state.state == 1) {
-                std::sprintf(round_txt, "ROUND %d / %d", state.round_number, TOTAL_ROUNDS);
+                sprintf(round_txt, "ROUND %d / %d", state.round_number, TOTAL_ROUNDS);
             } else if (state.state == 2) {
-                std::sprintf(round_txt, "ROUND %d OVER", state.round_number);
+                sprintf(round_txt, "ROUND %d OVER", state.round_number);
             } else {
-                std::strcpy(round_txt, "GAME OVER");
+                strcpy(round_txt, "GAME OVER");
             }
             DrawText(round_txt, 30, 12, 20, GOLD);
 
             char timer_txt[32];
             if (state.state == 1) {
-                std::sprintf(timer_txt, "TIME REMAINING: %.0fs", state.round_timer);
+                sprintf(timer_txt, "TIME REMAINING: %.0fs", state.round_timer);
             } else {
-                std::strcpy(timer_txt, "");
+                strcpy(timer_txt, "");
             }
             DrawText(timer_txt, 980, 12, 20, WHITE);
 
@@ -287,10 +289,10 @@ int main() {
             if (state.state == 0) {
                 DrawRectangle(440, 200, 400, 360, Color{ 0, 0, 0, 200 });
                 DrawText("LOBBY", 530, 220, 24, GOLD);
-                DrawText("You can move with WSAD", 475, 260, 16, LIGHTGRAY);
+                DrawText("Move can move with WSAD", 475, 260, 16, LIGHTGRAY);
 
                 DrawText("PLAYERS:", 470, 300, 18, WHITE);
-                for (uint32_t i = 0; i < state.player_count; ++i) {
+                for (int i = 0; i < (int)state.player_count; ++i) {
                     Player& p = state.players[i];
                     Color c = GetPlayerColor(p.color_index);
 
@@ -303,7 +305,7 @@ int main() {
                     }
                 }
 
-                for (uint32_t i = 0; i < state.player_count; ++i) {
+                for (int i = 0; i < (int)state.player_count; ++i) {
                     if (state.players[i].id == my_id) {
                         bool is_my_ready = state.players[i].is_ready;
                         Rectangle r_btn = Rectangle{ 540, 490, 200, 45 };
@@ -326,9 +328,9 @@ int main() {
                 DrawRectangle(400, 220, 480, 280, Color{ 0, 0, 0, 210 });
                 DrawText("ROUND OVER!", 560, 240, 28, GOLD);
 
-                std::string round_win_name = "Tie/None";
+                string round_win_name = "Tie/None";
                 if (state.winner_id != 0) {
-                    for (uint32_t i = 0; i < state.player_count; ++i) {
+                    for (int i = 0; i < (int)state.player_count; ++i) {
                         if (state.players[i].id == state.winner_id) {
                             round_win_name = state.players[i].name;
                             break;
@@ -337,13 +339,13 @@ int main() {
                 }
 
                 char win_info[64];
-                std::sprintf(win_info, "Winner: %s", round_win_name.c_str());
+                sprintf(win_info, "Winner: %s", round_win_name.c_str());
                 DrawText(win_info, 640 - MeasureText(win_info, 20) / 2, 290, 20, LIME);
 
                 DrawText("Round Scores:", 450, 330, 16, LIGHTGRAY);
-                for (uint32_t i = 0; i < state.player_count; ++i) {
+                for (int i = 0; i < (int)state.player_count; ++i) {
                     char score_line[64];
-                    std::sprintf(score_line, "%s: %d gold", state.players[i].name, state.players[i].gold_in_base);
+                    sprintf(score_line, "%s: %d gold", state.players[i].name, state.players[i].gold_in_base);
                     DrawText(score_line, 450, 360 + i * 24, 16, WHITE);
                 }
 
@@ -355,11 +357,11 @@ int main() {
                 DrawRectangle(380, 160, 520, 400, Color{ 0, 0, 0, 220 });
                 DrawText("LAST ROUND", 530, 185, 34, GOLD);
 
-                std::string grand_win_name = "Multiple Winners";
+                string grand_win_name = "Multiple Winners";
                 if (state.winner_id != 0) {
-                    for (uint32_t i = 0; i < state.player_count; ++i) {
+                    for (int i = 0; i < (int)state.player_count; ++i) {
                         if (state.players[i].id == state.winner_id) {
-                            grand_win_name = std::string(state.players[i].name) + " wins the game";
+                            grand_win_name = string(state.players[i].name) + " wins the game!";
                             break;
                         }
                     }
@@ -368,24 +370,24 @@ int main() {
                 DrawText(grand_win_name.c_str(), 640 - MeasureText(grand_win_name.c_str(), 22) / 2, 240, 22, LIME);
 
                 struct LeaderboardEntry {
-                    std::string name;
+                    string name;
                     uint32_t rounds_won;
                     uint32_t total_gold;
                 };
-                std::vector<LeaderboardEntry> leaderboard;
-                for (uint32_t i = 0; i < state.player_count; ++i) {
+                vector<LeaderboardEntry> leaderboard;
+                for (int i = 0; i < (int)state.player_count; ++i) {
                     leaderboard.push_back({ state.players[i].name, state.players[i].rounds_won, state.players[i].total_gold_all_rounds });
                 }
-                std::sort(leaderboard.begin(), leaderboard.end(), [](const LeaderboardEntry& a, const LeaderboardEntry& b){
+                sort(leaderboard.begin(), leaderboard.end(), [](const LeaderboardEntry& a, const LeaderboardEntry& b){
                     if (a.rounds_won != b.rounds_won) return a.rounds_won > b.rounds_won;
                     return a.total_gold > b.total_gold;
                 });
 
                 DrawText("FINAL LEADERBOARD:", 420, 290, 18, LIGHTGRAY);
-                for (size_t i = 0; i < leaderboard.size(); ++i) {
+                for (int i = 0; i < (int)leaderboard.size(); ++i) {
                     char place_txt[128];
-                    std::sprintf(place_txt, "#%d %s  -  Rounds Won: %d  (Total Gold: %d)", 
-                                 (int)i + 1, leaderboard[i].name.c_str(), leaderboard[i].rounds_won, leaderboard[i].total_gold);
+                    sprintf(place_txt, "#%d %s  -  Rounds Won: %d  (Total Gold: %d)", 
+                                 i + 1, leaderboard[i].name.c_str(), leaderboard[i].rounds_won, leaderboard[i].total_gold);
                     DrawText(place_txt, 420, 330 + i * 30, 16, i == 0 ? YELLOW : WHITE);
                 }
 
@@ -396,7 +398,7 @@ int main() {
             if (is_shop_open && state.state == 1) {
                 Player my_player;
                 bool is_found_me = false;
-                for (uint32_t i = 0; i < state.player_count; ++i) {
+                for (int i = 0; i < (int)state.player_count; ++i) {
                     if (state.players[i].id == my_id) {
                         my_player = state.players[i];
                         is_found_me = true;
@@ -408,10 +410,10 @@ int main() {
                     DrawRectangle(0, 0, 1280, 720, Color{ 0, 0, 0, 180 });
 
                     DrawRectangle(340, 80, 600, 560, Color{ 235, 195, 135, 255 });
-                    DrawText("ISLAND GENERAL STORE", 475, 105, 28, BLACK);
+                    DrawText("STORE", 475, 105, 28, BLACK);
 
                     char shop_gold_txt[64];
-                    std::sprintf(shop_gold_txt, "Gold Stored in Base: %d", my_player.gold_in_base);
+                    sprintf(shop_gold_txt, "Gold Stored in base: %d", my_player.gold_in_base);
                     DrawText(shop_gold_txt, 380, 150, 18, MAROON);
 
                     struct ShopItem {
@@ -422,12 +424,12 @@ int main() {
                         bool is_owned;
                     };
 
-                    std::vector<ShopItem> shop_items = {
-                        { 0, "Speed Boots", "Increases speed by 45% (Passive)", static_cast<int>(COST_SPEED_BOOST), my_player.is_speed_upgraded },
-                        { 1, "Gold Pan Multiplier", "Gold is worth 1.5x (Passive)", static_cast<int>(COST_GOLD_MULTIPLIER), my_player.is_gold_multiplier_active }
+                    vector<ShopItem> shop_items = {
+                        { 0, "Speed Boots", "Increases speed by 45% (Passive)", (int)COST_SPEED_BOOST, my_player.is_speed_upgraded },
+                        { 1, "Gold Pan Multiplier", "Gold is worth 1.5x (Passive)", (int)COST_GOLD_MULTIPLIER, my_player.is_gold_multiplier_active }
                     };
 
-                    for (size_t i = 0; i < shop_items.size(); ++i) {
+                    for (int i = 0; i < (int)shop_items.size(); ++i) {
                         int y_pos = 210 + i * 80;
                         DrawRectangle(370, y_pos, 540, 70, Color{ 255, 255, 255, 150 });
 
@@ -435,23 +437,23 @@ int main() {
                         DrawText(shop_items[i].desc, 390, y_pos + 38, 13, DARKGRAY);
 
                         char cost_txt[32];
-                        std::sprintf(cost_txt, "%d Gold", shop_items[i].cost);
+                        sprintf(cost_txt, "%d Gold", shop_items[i].cost);
 
-                        Rectangle buy_btn = Rectangle{ 780, static_cast<float>(y_pos + 15), 110, 40 };
+                        Rectangle buy_btn = Rectangle{ 780, (float)(y_pos + 15), 110, 40 };
                         bool is_buy_hover = CheckCollisionPointRec(GetMousePosition(), buy_btn);
 
                         if (shop_items[i].is_owned) {
                             DrawRectangleRec(buy_btn, LIGHTGRAY);
-                            DrawText("OWNED", static_cast<int>(780 + (110 - MeasureText("OWNED", 14)) / 2), y_pos + 27, 14, DARKGRAY);
+                            DrawText("OWNED", 780 + (110 - MeasureText("OWNED", 14)) / 2, y_pos + 27, 14, DARKGRAY);
                         }
                         else {
-                            bool is_affordable = (my_player.gold_in_base >= static_cast<uint32_t>(shop_items[i].cost));
+                            bool is_affordable = (my_player.gold_in_base >= (uint32_t)shop_items[i].cost);
                             DrawRectangleRec(buy_btn, is_buy_hover ? GOLD : (is_affordable ? ORANGE : RED));
 
-                            DrawText(cost_txt, static_cast<int>(780 + (110 - MeasureText(cost_txt, 14)) / 2), y_pos + 27, 14, BLACK);
+                            DrawText(cost_txt, 780 + (110 - MeasureText(cost_txt, 14)) / 2, y_pos + 27, 14, BLACK);
 
                             if (is_affordable && is_buy_hover && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
-                                network_send_buy(static_cast<uint32_t>(shop_items[i].index));
+                                network_send_buy((uint32_t)shop_items[i].index);
                             }
                         }
                     }
@@ -469,15 +471,15 @@ int main() {
             // draw notifications at the bottom left
             {
                 int notif_y = 680;
-                for (int i = static_cast<int>(notifications.size()) - 1; i >= 0 && i >= static_cast<int>(notifications.size()) - 5; --i) {
+                for (int i = (int)notifications.size() - 1; i >= 0 && i >= (int)notifications.size() - 5; --i) {
                     Notification& n = notifications[i];
                     unsigned char alpha = 255;
                     if (n.timer < 1.0f) {
-                        alpha = static_cast<unsigned char>(n.timer * 255);
+                        alpha = (unsigned char)(n.timer * 255);
                     }
 
                     int text_w = MeasureText(n.text.c_str(), 14);
-                    DrawRectangle(25, notif_y - 22, text_w + 16, 24, Color{ 0, 0, 0, static_cast<unsigned char>(alpha * 0.7f) });
+                    DrawRectangle(25, notif_y - 22, text_w + 16, 24, Color{ 0, 0, 0, (unsigned char)(alpha * 0.7f) });
                     DrawText(n.text.c_str(), 33, notif_y - 18, 14, Color{ 255, 255, 255, alpha });
                     notif_y -= 28;
                 }
