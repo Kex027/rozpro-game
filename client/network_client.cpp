@@ -148,7 +148,7 @@ bool network_connect(const char* ip, int port, const char* name) {
 
     // try connecting to server
     if (connect(net_socket, reinterpret_cast<struct sockaddr*>(&serv_addr), sizeof(serv_addr)) == SOCKET_ERROR) {
-        error_msg = "connection refused";
+        error_msg = "did not connect";
         closesocket(net_socket);
         return false;
     }

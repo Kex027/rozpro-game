@@ -155,25 +155,20 @@ int main() {
         ClearBackground(Color{ 40, 80, 150, 255 });
 
         if (!is_connected) {
-            DrawRectangle(390, 100, 500, 520, Color{ 235, 195, 135, 240 });
-            DrawRectangleLines(390, 100, 500, 520, GOLD);
-
             DrawText("GOLD FEVER", 490, 130, 48, GOLD);
 
-            DrawText("NICKNAME:", 450, 250, 20, BLACK);
+            DrawText("NAME:", 450, 250, 20, BLACK);
             Rectangle name_rect = Rectangle{ 450, 280, 380, 40 };
             DrawRectangleRec(name_rect, WHITE);
-            DrawRectangleLinesEx(name_rect, active_input_box == 0 ? 3 : 1, active_input_box == 0 ? GOLD : DARKGRAY);
             DrawText(name_input, 465, 290, 22, BLACK);
             if (active_input_box == 0 && (int)(GetTime() * 2) % 2 == 0) {
                 int cursor_pos = MeasureText(name_input, 22) + 470;
                 DrawLine(cursor_pos, 285, cursor_pos, 315, BLACK);
             }
 
-            DrawText("SERVER IP ADDRESS:", 450, 360, 20, BLACK);
+            DrawText("SERVER IP:", 450, 360, 20, BLACK);
             Rectangle ip_rect = Rectangle{ 450, 390, 380, 40 };
             DrawRectangleRec(ip_rect, WHITE);
-            DrawRectangleLinesEx(ip_rect, active_input_box == 1 ? 3 : 1, active_input_box == 1 ? GOLD : DARKGRAY);
             DrawText(ip_input, 465, 400, 22, BLACK);
             if (active_input_box == 1 && (int)(GetTime() * 2) % 2 == 0) {
                 int cursor_pos = MeasureText(ip_input, 22) + 470;
@@ -184,7 +179,6 @@ int main() {
             Vector2 mouse = GetMousePosition();
             bool is_hovered = CheckCollisionPointRec(mouse, btn_rect);
             DrawRectangleRec(btn_rect, is_hovered ? GOLD : ORANGE);
-            DrawRectangleLinesEx(btn_rect, 2, BLACK);
             DrawText("ENTER LOBBY", 565, 492, 22, WHITE);
 
             if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
@@ -201,14 +195,12 @@ int main() {
                 DrawText(connection_err.c_str(), 640 - err_w / 2, 560, 18, RED);
             }
 
-            DrawText("Press ENTER to connect.", 440, 595, 14, DARKGRAY);
         } else {
             GameState state = network_get_state();
             uint32_t my_id = network_get_player_id();
 
             // draw island background and borders
             DrawRectangle(30, 30, (int)MAP_WIDTH - 60, (int)MAP_HEIGHT - 60, Color{ 245, 222, 179, 255 });
-            DrawRectangleLinesEx(Rectangle{ 30, 30, MAP_WIDTH - 60, MAP_HEIGHT - 60 }, 5, Color{ 215, 185, 120, 255 });
 
             // draw player bases
             for (uint32_t i = 0; i < state.player_count; ++i) {
@@ -239,8 +231,6 @@ int main() {
                 if (!gold.is_active) continue;
 
                 DrawPoly(Vector2{ gold.pos.x, gold.pos.y }, 4, GOLD_RADIUS, 45.0f, GOLD);
-                DrawPolyLines(Vector2{ gold.pos.x, gold.pos.y }, 4, GOLD_RADIUS + 2.0f, 45.0f, BLACK);
-                DrawCircle(static_cast<int>(gold.pos.x - 3), static_cast<int>(gold.pos.y - 3), 2, WHITE);
 
                 char val_str[16];
                 std::sprintf(val_str, "%d", gold.value);
@@ -256,15 +246,9 @@ int main() {
                 Color dark_color = GetPlayerDarkColor(p.color_index);
 
                 DrawCircle(static_cast<int>(p.pos.x), static_cast<int>(p.pos.y), PLAYER_RADIUS, color);
-                DrawCircleLines(static_cast<int>(p.pos.x), static_cast<int>(p.pos.y), PLAYER_RADIUS, BLACK);
-
-                if (p.id == my_id) {
-                    DrawCircleLines(static_cast<int>(p.pos.x), static_cast<int>(p.pos.y), PLAYER_RADIUS + 4.0f, YELLOW);
-                }
 
                 if (p.gold_carried > 0) {
                     DrawRectangle(static_cast<int>(p.pos.x - 7), static_cast<int>(p.pos.y - PLAYER_RADIUS - 14), 14, 14, GOLD);
-                    DrawRectangleLines(static_cast<int>(p.pos.x - 7), static_cast<int>(p.pos.y - PLAYER_RADIUS - 14), 14, 14, BLACK);
                     char carry_txt[16];
                     std::sprintf(carry_txt, "+%d", p.gold_carried);
                     DrawText(carry_txt, static_cast<int>(p.pos.x - MeasureText(carry_txt, 10) / 2), static_cast<int>(p.pos.y - PLAYER_RADIUS - 12), 10, BLACK);
@@ -275,19 +259,10 @@ int main() {
                 int tag_w = MeasureText(name_tag, 13);
                 DrawRectangle(static_cast<int>(p.pos.x - tag_w / 2 - 4), static_cast<int>(p.pos.y + PLAYER_RADIUS + 4), tag_w + 8, 16, Color{ 0, 0, 0, 160 });
                 DrawText(name_tag, static_cast<int>(p.pos.x - tag_w / 2), static_cast<int>(p.pos.y + PLAYER_RADIUS + 6), 13, WHITE);
-
-                if (p.stun_timer > 0) {
-                    DrawText("STUNNED!", static_cast<int>(p.pos.x - 28), static_cast<int>(p.pos.y - PLAYER_RADIUS - 28), 12, RED);
-                    float spin = GetTime() * 10.0f;
-                    DrawCircleLines(static_cast<int>(p.pos.x + 10 * std::cos(spin)), static_cast<int>(p.pos.y - 10 + 5 * std::sin(spin)), 2, YELLOW);
-                    DrawCircleLines(static_cast<int>(p.pos.x + 10 * std::cos(spin + 3.14f)), static_cast<int>(p.pos.y - 10 + 5 * std::sin(spin + 3.14f)), 2, YELLOW);
-                } else if (p.slow_timer > 0) {
-                    DrawText("SLOWED", static_cast<int>(p.pos.x - 22), static_cast<int>(p.pos.y - PLAYER_RADIUS - 28), 12, GREEN);
-                }
             }
 
             // draw top status bar with round info
-            DrawRectangle(0, 0, 1280, 45, Color{ 0, 0, 0, 180 });
+            DrawRectangle(0, 0, 1280, 45, Color{ 0, 0, 0, 255 });
 
             char round_txt[32];
             if (state.state == 0) {
@@ -309,14 +284,13 @@ int main() {
             }
             DrawText(timer_txt, 980, 12, 20, WHITE);
 
-            DrawText("[B] SHOP | [SPACE] READY (In Lobby)", 420, 15, 14, LIGHTGRAY);
+            DrawText("[B] SHOP | [SPACE] READY", 420, 15, 14, LIGHTGRAY);
 
             // draw ready button and lobby ui
             if (state.state == 0) {
                 DrawRectangle(440, 200, 400, 360, Color{ 0, 0, 0, 200 });
-                DrawRectangleLines(440, 200, 400, 360, GOLD);
-                DrawText("LOBBY (TUTORIAL)", 530, 220, 24, GOLD);
-                DrawText("Move around with WSAD to test controls.", 475, 260, 16, LIGHTGRAY);
+                DrawText("LOBBY", 530, 220, 24, GOLD);
+                DrawText("You can move with WSAD", 475, 260, 16, LIGHTGRAY);
 
                 DrawText("PLAYERS:", 470, 300, 18, WHITE);
                 for (uint32_t i = 0; i < state.player_count; ++i) {
@@ -339,7 +313,6 @@ int main() {
                         bool is_r_hover = CheckCollisionPointRec(GetMousePosition(), r_btn);
 
                         DrawRectangleRec(r_btn, is_my_ready ? LIME : (is_r_hover ? GOLD : ORANGE));
-                        DrawRectangleLinesEx(r_btn, 2, BLACK);
 
                         const char* r_txt = is_my_ready ? "MARKED READY" : "MARK READY";
                         DrawText(r_txt, 540 + (200 - MeasureText(r_txt, 18)) / 2, 502, 18, BLACK);
@@ -354,7 +327,6 @@ int main() {
             // draw round end summary popup
             if (state.state == 2) {
                 DrawRectangle(400, 220, 480, 280, Color{ 0, 0, 0, 210 });
-                DrawRectangleLines(400, 220, 480, 280, GOLD);
                 DrawText("ROUND OVER!", 560, 240, 28, GOLD);
 
                 std::string round_win_name = "Tie/None";
@@ -384,14 +356,13 @@ int main() {
             // draw end of game grand finale popup
             if (state.state == 3) {
                 DrawRectangle(380, 160, 520, 400, Color{ 0, 0, 0, 220 });
-                DrawRectangleLines(380, 160, 520, 400, GOLD);
-                DrawText("GRAND FINALE!", 530, 185, 34, GOLD);
+                DrawText("LAST ROUND", 530, 185, 34, GOLD);
 
-                std::string grand_win_name = "Multiple Winners (Tie)";
+                std::string grand_win_name = "Multiple Winners";
                 if (state.winner_id != 0) {
                     for (uint32_t i = 0; i < state.player_count; ++i) {
                         if (state.players[i].id == state.winner_id) {
-                            grand_win_name = std::string(state.players[i].name) + " wins the game!";
+                            grand_win_name = std::string(state.players[i].name) + " wins the game";
                             break;
                         }
                     }
@@ -421,7 +392,7 @@ int main() {
                     DrawText(place_txt, 420, 330 + i * 30, 16, i == 0 ? YELLOW : WHITE);
                 }
 
-                DrawText("Returning to Lobby...", 555, 520, 14, GRAY);
+                DrawText("Returning to Lobby", 555, 520, 14, GRAY);
             }
 
             // draw island shop store popup
@@ -440,8 +411,6 @@ int main() {
                     DrawRectangle(0, 0, 1280, 720, Color{ 0, 0, 0, 180 });
 
                     DrawRectangle(340, 80, 600, 560, Color{ 235, 195, 135, 255 });
-                    DrawRectangleLinesEx(Rectangle{ 340, 80, 600, 560 }, 3, GOLD);
-
                     DrawText("ISLAND GENERAL STORE", 475, 105, 28, BLACK);
 
                     char shop_gold_txt[64];
@@ -464,7 +433,6 @@ int main() {
                     for (size_t i = 0; i < shop_items.size(); ++i) {
                         int y_pos = 210 + i * 80;
                         DrawRectangle(370, y_pos, 540, 70, Color{ 255, 255, 255, 150 });
-                        DrawRectangleLines(370, y_pos, 540, 70, DARKGRAY);
 
                         DrawText(shop_items[i].name, 390, y_pos + 12, 18, BLACK);
                         DrawText(shop_items[i].desc, 390, y_pos + 38, 13, DARKGRAY);
@@ -482,7 +450,6 @@ int main() {
                         else {
                             bool is_affordable = (my_player.gold_in_base >= static_cast<uint32_t>(shop_items[i].cost));
                             DrawRectangleRec(buy_btn, is_buy_hover ? GOLD : (is_affordable ? ORANGE : RED));
-                            DrawRectangleLinesEx(buy_btn, 1, BLACK);
 
                             DrawText(cost_txt, static_cast<int>(780 + (110 - MeasureText(cost_txt, 14)) / 2), y_pos + 27, 14, BLACK);
 
@@ -514,7 +481,6 @@ int main() {
 
                     int text_w = MeasureText(n.text.c_str(), 14);
                     DrawRectangle(25, notif_y - 22, text_w + 16, 24, Color{ 0, 0, 0, static_cast<unsigned char>(alpha * 0.7f) });
-                    DrawRectangleLines(25, notif_y - 22, text_w + 16, 24, Color{ 255, 215, 0, alpha });
                     DrawText(n.text.c_str(), 33, notif_y - 18, 14, Color{ 255, 255, 255, alpha });
                     notif_y -= 28;
                 }

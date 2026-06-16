@@ -135,7 +135,7 @@ void spawn_gold() {
             // random angle and distance from middle
             float angle = static_cast<float>(std::rand()) / RAND_MAX * 2.0f * 3.14159f;
             // keep it between mine edge and outer circle
-            float dist = MINE_RADIUS + 20.0f + (static_cast<float>(std::rand()) / RAND_MAX * 250.0f);
+            float dist = MINE_RADIUS + 20.0f + (static_cast<float>(std::rand()) / RAND_MAX * 25.0f);
             
             game_state.gold_items[i].pos.x = CENTER_X + dist * std::cos(angle);
             game_state.gold_items[i].pos.y = CENTER_Y + dist * std::sin(angle);
