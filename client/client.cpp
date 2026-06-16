@@ -208,7 +208,6 @@ int main() {
                 if (!b.is_active) continue;
 
                 Color c = GetPlayerColor(state.players[i].color_index);
-                Color dark_c = GetPlayerDarkColor(state.players[i].color_index);
 
                 // draw base circle outline
                 DrawCircle(static_cast<int>(b.pos.x), static_cast<int>(b.pos.y), BASE_RADIUS - 6.0f, c);
@@ -243,8 +242,6 @@ int main() {
                 if (!p.is_active) continue;
 
                 Color color = GetPlayerColor(p.color_index);
-                Color dark_color = GetPlayerDarkColor(p.color_index);
-
                 DrawCircle(static_cast<int>(p.pos.x), static_cast<int>(p.pos.y), PLAYER_RADIUS, color);
 
                 if (p.gold_carried > 0) {

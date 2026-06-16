@@ -16,4 +16,4 @@ bool network_is_connected();
 std::string network_get_error();
 uint32_t network_get_player_id();
 
-#endif // NETWORK_CLIENT_H
+#endif

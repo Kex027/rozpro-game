@@ -1,19 +1,16 @@
 #ifndef GAME_TYPES_H
 #define GAME_TYPES_H
+#define MAX_PLAYERS 4
+#define MAX_GOLD_ITEMS 15
 
 #include <stdint.h>
-#include <stdbool.h>
-
-// make structs packed so network bytes align nicely
 #pragma pack(push, 1)
 
-// basic 2d vector for positions and directions
 struct Vec2 {
     float x;
     float y;
 };
 
-// player info we sync over network
 struct Player {
     uint32_t id;
     char name[32];
@@ -27,20 +24,11 @@ struct Player {
 
     bool is_speed_upgraded;
     bool is_gold_multiplier_active;
-    bool is_base_defense_active;
-    bool is_attack_weapon_active;
-    bool is_thief_upgrade_active;
-
-    float slow_timer;
-    float stun_timer;
-    float attack_cooldown;
-    
     bool is_ready;
     bool is_active;
     uint32_t color_index;
 };
 
-// base on map, rotates around middle
 struct Base {
     uint32_t owner_id;
     Vec2 pos;
@@ -48,7 +36,6 @@ struct Base {
     bool is_active;
 };
 
-// gold nugget that spawns in middle mine
 struct GoldItem {
     uint32_t id;
     Vec2 pos;
@@ -56,28 +43,22 @@ struct GoldItem {
     bool is_active;
 };
 
-#define MAX_PLAYERS 4
-#define MAX_GOLD_ITEMS 15
 
-// big state struct sent to clients every tick
+
 struct GameState {
     uint32_t state;
     uint32_t round_number;
     float round_timer;
-    
     uint32_t player_count;
     Player players[MAX_PLAYERS];
     Base bases[MAX_PLAYERS];
-    
     uint32_t gold_count;
     GoldItem gold_items[MAX_GOLD_ITEMS];
-    
     uint32_t winner_id;
 };
 
 #pragma pack(pop)
 
-// map settings and sizes
 const float MAP_WIDTH = 1280.0f;
 const float MAP_HEIGHT = 720.0f;
 const float CENTER_X = 640.0f;
@@ -89,28 +70,15 @@ const float BASE_RADIUS = 40.0f;
 const float PLAYER_RADIUS = 22.0f;
 const float GOLD_RADIUS = 12.0f;
 
-// player speeds and slow constants
-const float PLAYER_BASE_SPEED = 180.0f; // px/sec
+const float PLAYER_BASE_SPEED = 180.0f;
 const float PLAYER_UPGRADED_SPEED = 260.0f;
-const float BASE_SLOW_FACTOR = 0.5f; // if carrying gold
-const float BASE_DEFENSE_SLOW_FACTOR = 0.5f;
-const float BASE_DEFENSE_SLOW_DURATION = 5.0f;
 
-const float PLAYER_STUN_DURATION = 2.5f;
-const float PLAYER_ATTACK_RANGE = 60.0f;
-const float PLAYER_ATTACK_COOLDOWN = 3.0f;
-
-// gold spawning settings
-const uint32_t GOLD_SPAWN_INTERVAL = 3; // seconds
+const uint32_t GOLD_SPAWN_INTERVAL = 3;
 const uint32_t MAX_GOLD_ON_MAP = 8;
 const uint32_t ROUND_DURATION = 30;
 const uint32_t TOTAL_ROUNDS = 3;
 
-// cost of upgrades in the shop
 const uint32_t COST_SPEED_BOOST = 15;
 const uint32_t COST_GOLD_MULTIPLIER = 25;
-const uint32_t COST_BASE_DEFENSE = 20;
-const uint32_t COST_ATTACK_WEAPON = 30;
-const uint32_t COST_THIEF_UPGRADE = 20;
 
 #endif // GAME_TYPES_H
